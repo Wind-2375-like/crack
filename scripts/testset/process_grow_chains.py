@@ -158,14 +158,14 @@ def process_chain(chain, args):
     Returns:
         dict: 
             A dictionary containing triples, probe questions, multi-hop questions,
-            and multi-hop answers for the chain.
+            and multi-hop answer for the chain.
     """
     if not chain:
         return {
             "triples": [],
             "probe_questions": [],
             "multihop_questions": [],
-            "multihop_answers": []
+            "multihop_answer": ""
         }
 
     processed_triples = []
@@ -198,23 +198,22 @@ def process_chain(chain, args):
         probe_questions.append({
             "question": question,
             "cloze": cloze,
-            "answers": list(set([answer]+get_alias_from_wikidata(o_id, args))),
+            "answer": answer,
         })
 
     # Generate multi-hop questions (using the simulated API call)
     multihop_prompt_system, multihop_prompt_user = format_chain_for_multihop_prompt(chain)
     multihop_questions, usage = generate_multihop_questions_via_api(multihop_prompt_system, multihop_prompt_user, args) # Simulates API call
 
-    # Determine multi-hop answers (aliases of the tail entity)
+    # Determine multi-hop answer
     tail_entity_label = chain[-1]['triple_label'][2]
-    tail_entity_id = chain[-1]['triple'][2]
-    multihop_answers = list(set([tail_entity_label]+get_alias_from_wikidata(tail_entity_id, args)))
+    multihop_answer = tail_entity_label
 
     return {
         "triples": processed_triples,
         "probe_questions": probe_questions,
         "multihop_questions": multihop_questions,
-        "multihop_answers": multihop_answers
+        "multihop_answer": multihop_answer
     }, usage
     
     
