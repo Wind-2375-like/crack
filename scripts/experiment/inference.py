@@ -6,7 +6,7 @@ sys.path.append(project_root)
 import json
 import argparse
 from utils.generator.chat_response_generator import ChatResponseGenerator
-from utils.helpers import translate_model_name
+from utils.helpers.grow import translate_model_name
 from utils.evaluator import answer_evaluator_cot, answer_evaluator, knowledge_confidence_evaluator
 
 import requests

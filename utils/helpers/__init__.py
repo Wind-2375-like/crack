@@ -1,1 +1,0 @@
-from .translate_model_name import translate_model_name
