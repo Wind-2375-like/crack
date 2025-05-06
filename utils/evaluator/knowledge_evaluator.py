@@ -10,9 +10,9 @@ def knowledge_confidence_evaluator(responses_correct):
 
     """
     # 1. Get the greedy decoding boolean value
-    greedy_decoding = responses_correct[:2]
+    greedy_decoding = [r[0] for r in responses_correct[:2]]
     # 2. Get the temperature sampling boolean values
-    temperature_sampling = responses_correct[2:]
+    temperature_sampling = [r[0] for r in responses_correct[2:]]
     # 3. Get the knowledge confidence
     if all(greedy_decoding):
         return "HighlyKnown"
