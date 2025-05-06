@@ -1,3 +1,2 @@
-from .cot_evaluator import answer_evaluator
-from .cot_evaluator import answer_evaluator_cot
+from .cot_evaluator import CotEvaluator
 from .knowledge_evaluator import knowledge_confidence_evaluator
