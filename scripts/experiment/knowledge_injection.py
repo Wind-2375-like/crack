@@ -19,6 +19,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Wikidata API endpoint
 WIKIDATA_API_ENDPOINT = "https://www.wikidata.org/w/api.php"
 
+# # 1. Get the model answers for each multihop question
+# chat_response_generator.update_chat_history([
+#     ("system", "You are given a question. To answer the question, you should think step by step. Use line breaks between steps, but do not use line breaks within each step. You should number each step. The final answer to the question should start with \\\"The answer is ...\\\", and should be placed at the final step.\n\n[Here is one demonstration]\n\nUser:\nWhat is the capital of the country where Plainfield Town Hall is located?\n\nAssistant:\n1. Plainfield Town Hall is one of two town halls in Plainfield, New Hampshire.\n2. New Hampshire is a state in the New England region of the Northeastern United States.\n3. Thus, Plainfield Town Hall is located in the country of the United States of America. \n4. The capital of United States is Washington, D.C.\n5. The answer is Washington, D.C."),
+# ])
+
 # --- Helper Functions ---
 
 def get_wikidata_label(entity_id: str, lang: str = "en") -> str:

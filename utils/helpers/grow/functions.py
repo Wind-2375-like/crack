@@ -1,7 +1,11 @@
+import random
 import requests
 import calendar
 from SPARQLWrapper import SPARQLWrapper, JSON
 from typing import List, Tuple, Optional
+
+# Wikidata API endpoint
+WIKIDATA_API_ENDPOINT = "https://www.wikidata.org/w/api.php"
 
 ALLOWED_PROPS = {
     "P39", # position held
@@ -84,25 +88,6 @@ def object_should_be(prop: str) -> Optional[str]:
         return "organization"
     else:
         return None
-
-def translate_model_name(model_name: str) -> str:
-    """
-    Translate a model name to a more user-friendly format.
-    
-    Args:
-        model_name (str): The original model name.
-    
-    Returns:
-        str: The translated model name.
-    """
-    # Define a mapping of model names to their user-friendly versions
-    model_name_mapping = {
-        "llama-3.2-3b-turbo": "meta-llama/Llama-3.2-3B-Instruct-Turbo",
-        "llama-3.2-90b-turbo": "meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
-    }
-    
-    # Return the translated model name or the original if not found
-    return model_name_mapping.get(model_name, model_name)
 
 def get_wikidata_label(entity_id: str, lang: str = "en") -> str:
     """
@@ -408,3 +393,111 @@ def process_chain(chain, args, chat_response_generator):
         "multihop_question": multihop_question,
         "multihop_answer": multihop_answer
     }, {args.model_name: {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}}
+    
+def make_api_request(params):
+    """Makes a request to the Wikidata API and returns the JSON response."""
+    try:
+        response = requests.get(WIKIDATA_API_ENDPOINT, params=params, headers={'User-Agent': 'CoolTool/0.0 (https://example.org/cool-tool/; cool-tool@example.org) Generic Bot'})
+        response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return None
+    except ValueError as e:
+        return None
+    
+def get_instance_of_qids(entity_qid):
+    """
+    Fetches the QID(s) of the 'instance of' (P31) property for a given entity QID.
+
+    Args:
+        entity_qid (str): The QID of the entity (e.g., "Q30" for USA).
+
+    Returns:
+        list: A list of QIDs representing the 'instance of' values, or an empty list if not found or error occurs.
+    """
+    params = {
+        "action": "wbgetentities",
+        "ids": entity_qid,
+        "format": "json",
+        "props": "claims",
+        "languages": "en" # Optional: helps debugging but not essential for logic
+    }
+
+    data = make_api_request(params)
+
+    if not data or "entities" not in data or entity_qid not in data["entities"]:
+        return []
+
+    entity_data = data["entities"][entity_qid]
+    if "claims" not in entity_data or "P31" not in entity_data["claims"]:
+        return []
+
+    instance_of_qids = []
+    for claim in entity_data["claims"]["P31"]:
+        if (claim.get("mainsnak", {}).get("snaktype") == "value" and
+            claim["mainsnak"].get("datavalue", {}).get("type") == "wikibase-entityid"):
+            instance_of_qids.append(claim["mainsnak"]["datavalue"]["value"]["id"])
+
+    if not instance_of_qids:
+        return []
+
+    return instance_of_qids
+    
+def find_similar_entity(input_qid, max_results_to_consider=50):
+    """
+    Finds another Wikidata entity that shares the same 'instance of' (P31) property.
+    May not used...
+    Args:
+        input_qid (str): The QID of the entity to find a similar one for (e.g., "Q142" for France).
+        max_results_to_consider (int): The maximum number of search results to fetch and consider.
+
+    Returns:
+        str: The QID of a similar entity, or None if none could be found or an error occurred.
+    """
+
+    # 1. Get the 'instance of' QID(s) for the input entity
+    type_qids = get_instance_of_qids(input_qid)
+    if not type_qids:
+        return None
+
+    # For simplicity, we'll primarily use the first type found.
+    # A more complex implementation could try multiple types if the first yields no results.
+    target_type_qid = type_qids[0]
+
+    # 2. Search for other entities with the same 'instance of' property (P31 = target_type_qid)
+    # We use the 'haswbstatement' search feature which is efficient for this.
+    # Randomize offset slightly to potentially get different results on subsequent calls
+    random_offset = random.randint(0, 200) # Adjust range as needed
+
+    search_params = {
+        "action": "query",
+        "list": "search",
+        "srsearch": f"haswbstatement:P31={target_type_qid}",
+        "srnamespace": 0,  # Search only in the main (Item) namespace
+        "format": "json",
+        "srlimit": max_results_to_consider,
+        "sroffset": random_offset,
+        "srinfo": "", # Don't need extra info like snippet
+        "srprop": ""  # Don't need extra properties like timestamp
+    }
+
+    search_data = make_api_request(search_params)
+
+    if not search_data or "query" not in search_data or "search" not in search_data["query"]:
+        return None
+
+    search_results = search_data["query"]["search"]
+
+    if not search_results:
+        return None
+
+    # 3. Filter out the original QID and select a random one
+    potential_matches = [result["title"] for result in search_results if result["title"] != input_qid]
+
+    if not potential_matches:
+        # Optional: Could retry search with a different offset or larger limit here
+        return None
+
+    # 4. Return a random match
+    similar_qid = random.choice(potential_matches)
+    return similar_qid

@@ -1,7 +1,6 @@
 from utils.clients.openai_chat_client import OpenAIChatClient
 from utils.clients.together_chat_client import TogetherChatClient
-from openai import OpenAI
-from together import Together
+from utils.clients.local_chat_client import LocalChatClient
 from together.error import RateLimitError as TogetherRateLimitError
 from openai import RateLimitError as OpenAIRateLimitError
 from together.error import APIConnectionError as TogetherAPIConnectionError
@@ -9,6 +8,7 @@ from together.error import ServiceUnavailableError as TogetherServiceUnavailable
 from together.error import APIError as TogetherAPIError
 from openai import APIConnectionError as OpenAIAPIConnectionError
 from time import sleep
+from huggingface_hub import login
 
 class ChatResponseGenerator:
     """ A General Chat Response Generator that can be used to generate responses for a chat system. """
@@ -31,7 +31,7 @@ class ChatResponseGenerator:
             if "gpt-4o-mini" in model_name: # fine-tuned models
                 self.client_type = "openai"
             else:
-                print(f"Model {model_name} is not supported in API. Trying to use local model.")
+                # print(f"Model {model_name} is not supported in API. Trying to use local model.")
                 self.client_type = "local"
         else:
             self.client_type = "local" if local else self.model_name_to_openai_or_together[model_name]
@@ -40,6 +40,9 @@ class ChatResponseGenerator:
             self.client = OpenAIChatClient(api_key=api_key.get("openai_api_key", None))
         elif self.client_type == "together":
             self.client = TogetherChatClient(api_key=api_key.get("togetherai_api_key", None))
+        elif self.client_type == "local":
+            login(token=api_key.get("huggingface_api_key", None))
+            self.client = LocalChatClient(model_name=model_name)
             
         self._usage = {}
 
@@ -63,8 +66,12 @@ class ChatResponseGenerator:
 
         def update_usage(model_name, usage):
             if self.client_type == "local":
-                return
-            if model_name not in self._usage:
+                self._usage[model_name] = {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                }
+            elif model_name not in self._usage:
                 self._usage[model_name] = {
                     "prompt_tokens": usage.prompt_tokens,
                     "completion_tokens": usage.completion_tokens,
@@ -86,6 +93,8 @@ class ChatResponseGenerator:
                 if self.client_type != "local":
                     usage = response.usage
                     update_usage(model_name, usage)
+                else:
+                    update_usage(model_name, None)
                 choices = response.choices
                 return [choice.message.content.strip() for choice in choices]
                     
