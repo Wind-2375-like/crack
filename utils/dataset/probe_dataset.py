@@ -73,6 +73,7 @@ class ProbeDataset(Dataset):
 
                 question = question_data.get('question')
                 answer = question_data.get('answer')
+                knowledge = question_data.get('knowledge')
 
                 # Ensure essential fields are present for a valid record
                 if question is None or answer is None:
@@ -83,6 +84,7 @@ class ProbeDataset(Dataset):
                     'id': count,  # This is the index of the item in the original outer list from the pkl
                     'question': str(question),  # Ensure string type
                     'answer': str(answer),      # Ensure string type
+                    'knowledge': str(knowledge),
                     'complex_question_id': complex_id_val,  # This is the index of the item in the original outer list from the pkl
                                                 # Convert original ID to string for consistency in Arrow table;
                                                 # or ensure it's of a consistent type (e.g., int) if applicable.
@@ -100,6 +102,7 @@ class ProbeDataset(Dataset):
                 ('id', pa.int64()),
                 ('question', pa.string()),
                 ('answer', pa.string()),
+                ('knowledge', pa.string()),
                 ('complex_question_id', pa.int64())
             ])
             # Create an empty table with this schema
@@ -133,6 +136,7 @@ class ProbeDataset(Dataset):
                 'id': pa.int64(),
                 'question': pa.string(),
                 'answer': pa.string(),
+                'knowledge': pa.string(),
                 'complex_question_id': pa.string() # Table needs a consistent type; nulls are okay.
             }
 

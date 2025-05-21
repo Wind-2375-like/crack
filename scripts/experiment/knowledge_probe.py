@@ -24,6 +24,11 @@ def parse_args():
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
     parser.add_argument('--model_name', type=str, default="gpt-4o-mini", help="Model name for the API")
     parser.add_argument('--task_name', type=str, default="grow", help="Task name")
+    parser.add_argument('--temperature', type=float, default=0.7, help="Temperature for the model")
+    parser.add_argument('--top_p', type=float, default=0.7, help="Top-p sampling for the model")
+    parser.add_argument('--top_k', type=int, default=50, help="Top-k sampling for the model")
+    parser.add_argument('--max_tokens', type=int, default=100, help="Maximum tokens for the model")
+    parser.add_argument('--num_responses', type=int, default=10, help="Number of responses to generate")
     return parser.parse_args()
 
 
@@ -51,15 +56,15 @@ def probe_item(item, args, chat_response_generator):
     
     responses = chat_response_generator.generate_response(
         f"User:\n{item["question"]}\nAssistant:\n",
-        temperature=0.7,
-        top_p=0.7,
-        top_k=50,
-        n=10,
-        max_tokens=100,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        top_k=args.top_k,
+        n=args.num_responses,
+        max_tokens=args.max_tokens,
     )
     responses = [response.replace("Assistant:", "").strip() for response in responses]
         
-    # 3. Update the chain with the model's answers
+    # 2. Update the chain with the model's answers
     item["probe_answers"] = responses
     
     return item, chat_response_generator.get_usage()
@@ -92,7 +97,7 @@ if __name__ == "__main__":
     # Use tqdm to show progress
     with tqdm(total=len(probe_dataset), desc="Processing chains") as pbar:
         for i in range(len(probe_dataset)):
-            # Process each chain
+            # Process each item
             item = probe_dataset[i]
             processed_item, usage = probe_item(item, args, chat_response_generator)
             # Update the total token counts
