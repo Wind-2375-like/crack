@@ -233,43 +233,62 @@ def sample_chain_exact(args, wbi, UA) -> List[Tuple[str, str, str]]:
         
 # Store the provided templates in a dictionary for easy lookup
 PROBE_TEMPLATES = {
-    'P30': {'question': 'Which continent is [S] located in?', 'cloze': '[S] is located in the continent of ___', 'attributive': 'the continent where [S] is located'},
-    'P36': {'question': 'What is the capital of [S]?', 'cloze': 'The capital of [S] is ___', 'attributive': 'the capital of [S]'},
-    'P35': {'question': 'Who is the current head of state in [S]?', 'cloze': 'The current head of state in [S] is ___', 'attributive': 'the person who is the current head of state in [S]'},
-    'P6': {'question': 'Who is the current head of the [S] government?', 'cloze': 'The current head of the [S] government is ___', 'attributive': 'the person who is the current head of government of [S]'},
-    'P20': {'question': 'Which city did [S] die in?', 'cloze': '[S] died in the city of ___', 'attributive': 'the city where [S] died'},
-    'P26': {'question': 'Who is [S] married to?', 'cloze': '[S] is married to ___', 'attributive': 'the person who is married to [S]'},
-    'P140': {'question': 'Which religion is [S] affiliated with?', 'cloze': '[S] is affiliated with the religion of ___', 'attributive': 'the religion that [S] is affiliated with'},
-    'P1412': {'question': 'What language does [S] speak?', 'cloze': '[S] speaks the language of ___', 'attributive': 'the language that [S] speaks'},
-    'P19': {'question': 'Which city was [S] born in?', 'cloze': '[S] was born in the city of ___', 'attributive': 'the city where [S] was born'},
-    'P69': {'question': 'Which university was [S] educated at?', 'cloze': 'The univeristy where [S] was educated is ___', 'attributive': 'the university where [S] was educated'},
-    'P40': {'question': 'Who is [S]’s child?', 'cloze': '[S]’s child is ___', 'attributive': 'the child of [S]'},
-    'P27': {'question': 'What is the country of citizenship of [S]?', 'cloze': '[S] is a citizen of ___', 'attributive': 'the country of citizenship of [S]'},
-    'P175': {'question': 'Who performed [S]?', 'cloze': '[S] was performed by ___', 'attributive': 'the performer of [S]'},
-    'P108': {'question': 'Which organization is the employer of [S]?', 'cloze': '[S] is employed by the organization ___', 'attributive': 'the organization that employs [S]'},
-    'P112': {'question': 'Who founded [S]?', 'cloze': '[S] was founded by ___', 'attributive': 'the founder of [S]'},
-    'P50': {'question': 'Who is the author of [S]?', 'cloze': 'The author of [S] is ___', 'attributive': 'the author of [S]'},
-    'P170': {'question': 'Who was [S] created by?', 'cloze': '[S] was created by ___', 'attributive': 'the creator of [S]'},
-    'P407': {'question': 'Which language was [S] written in?', 'cloze': '[S] was written in the language of ___', 'attributive': 'the language that [S] was written in'},
-    'P37': {'question': 'What is the official language of [S]?', 'cloze': 'The official language of [S] is ___', 'attributive': 'the official language of [S]'},
-    'P740': {'question': 'Which city was [S] founded?', 'cloze': '[S] was founded in the city of ___', 'attributive': 'the city where [S] was founded'},
-    'P495': {'question': 'Which country was [S] created in?', 'cloze': '[S] was created in the country of ___', 'attributive': 'the country where [S] was created'},
-    'P106': {'question': 'What kind of work does [S] do?', 'cloze': '[S] works in the field of ___', 'attributive': 'the field of work of [S]'},
-    'P136': {'question': 'What type of music does [S] play?', 'cloze': 'The type of music that [S] plays is ___', 'attributive': 'the type of music that [S] plays'},
-    'P364': {'question': 'What is the original language of [S]?', 'cloze': 'The original language of [S] is ___', 'attributive': 'the original language of [S]'},
-    'P937': {'question': 'Which city did [S] work in?', 'cloze': '[S] worked in the city of ___', 'attributive': 'the city where [S] worked'},
-    'P800': {'question': 'What is [S] famous for?', 'cloze': '[S] is famous for ___', 'attributive': 'the thing that [S] is famous for'},
-    'P641': {'question': 'Which sport is [S] associated with?', 'cloze': '[S] is associated with the sport of ___', 'attributive': 'the sport that [S] is associated with'},
-    'P413': {'question': 'What position does [S] play?', 'cloze': '[S] plays the position of ___', 'attributive': 'the position that [S] plays'},
-    'P286': {'question': 'Who is the head coach of [S]?', 'cloze': 'The head coach of [S] is ___', 'attributive': 'the head coach of [S]'},
-    'P159': {'question': 'Which city is the headquarter of [S] located in?', 'cloze': 'The headquarters of [S] is located in the city of ___', 'attributive': 'the city where the headquarters of [S] is located'},
-    'P178': {'question': 'Who is the developer of [S]?', 'cloze': '[S] was developed by ___', 'attributive': 'the developer of [S]'},
-    'P488': {'question': 'Who is the chairperson of [S]?', 'cloze': 'The chairperson of [S] is ___', 'attributive': 'the chairperson of [S]'},
-    'P169': {'question': 'Who is the chief executive officer of [S]?', 'cloze': 'The chief executive officer of [S] is ___', 'attributive': 'the chief executive officer of [S]'},
-    'P449': {'question': 'Who is the original broadcaster of [S]?', 'cloze': 'The origianl broadcaster of [S] is ___', 'attributive': 'the original broadcaster of [S]'},
-    'P176': {'question': 'Which company is [S] produced by?', 'cloze': 'The company that produced [S] is ___', 'attributive': 'the company that produced [S]'},
-    'P1037': {'question': 'Who is the director of [S]?', 'cloze': 'The director of [S] is ___', 'attributive': 'the director of [S]'},
+    'P30': {'question': 'Which continent is [S] located in?', 'cloze': '[S] is located in the continent of ___.', 'attributive': 'the continent where [S] is located'},
+    'P36': {'question': 'What is the capital of [S]?', 'cloze': 'The capital of [S] is ___.', 'attributive': 'the capital of [S]'},
+    'P35': {'question': 'Who is the current head of state in [S]?', 'cloze': 'The current head of state in [S] is ___.', 'attributive': 'the person who is the current head of state in [S]'},
+    'P6': {'question': 'Who is the current head of the [S] government?', 'cloze': 'The current head of the [S] government is ___.', 'attributive': 'the person who is the current head of government of [S]'},
+    'P20': {'question': 'Which city did [S] die in?', 'cloze': '[S] died in the city of ___.', 'attributive': 'the city where [S] died'},
+    'P26': {'question': 'Who is [S] married to?', 'cloze': '[S] is married to ___.', 'attributive': 'the person who is married to [S]'},
+    'P140': {'question': 'Which religion is [S] affiliated with?', 'cloze': '[S] is affiliated with the religion of ___.', 'attributive': 'the religion that [S] is affiliated with'},
+    'P1412': {'question': 'What language does [S] speak?', 'cloze': '[S] speaks the language of ___.', 'attributive': 'the language that [S] speaks'},
+    'P19': {'question': 'Which city was [S] born in?', 'cloze': '[S] was born in the city of ___.', 'attributive': 'the city where [S] was born'},
+    'P69': {'question': 'Which university was [S] educated at?', 'cloze': 'The univerisity where [S] was educated is ___.', 'attributive': 'the university where [S] was educated'},
+    'P40': {'question': 'Who is [S]’s child?', 'cloze': '[S]’s child is ___.', 'attributive': 'the child of [S]'},
+    'P27': {'question': 'What is the country of citizenship of [S]?', 'cloze': '[S] is a citizen of ___.', 'attributive': 'the country of citizenship of [S]'},
+    'P175': {'question': 'Who performed [S]?', 'cloze': '[S] was performed by ___.', 'attributive': 'the performer of [S]'},
+    'P108': {'question': 'Which organization is the employer of [S]?', 'cloze': '[S] is employed by the organization ___.', 'attributive': 'the organization that employs [S]'},
+    'P112': {'question': 'Who founded [S]?', 'cloze': '[S] was founded by ___.', 'attributive': 'the founder of [S]'},
+    'P50': {'question': 'Who is the author of [S]?', 'cloze': 'The author of [S] is ___.', 'attributive': 'the author of [S]'},
+    'P170': {'question': 'Who was [S] created by?', 'cloze': '[S] was created by ___.', 'attributive': 'the creator of [S]'},
+    'P407': {'question': 'Which language was [S] written in?', 'cloze': '[S] was written in the language of ___.', 'attributive': 'the language that [S] was written in'},
+    'P37': {'question': 'What is the official language of [S]?', 'cloze': 'The official language of [S] is ___.', 'attributive': 'the official language of [S]'},
+    'P740': {'question': 'Which city was [S] founded?', 'cloze': '[S] was founded in the city of ___.', 'attributive': 'the city where [S] was founded'},
+    'P495': {'question': 'Which country was [S] created in?', 'cloze': '[S] was created in the country of ___.', 'attributive': 'the country where [S] was created'},
+    'P106': {'question': 'What kind of work does [S] do?', 'cloze': '[S] works in the field of ___.', 'attributive': 'the field of work of [S]'},
+    'P136': {'question': 'What type of music does [S] play?', 'cloze': 'The type of music that [S] plays is ___.', 'attributive': 'the type of music that [S] plays'},
+    'P364': {'question': 'What is the original language of [S]?', 'cloze': 'The original language of [S] is ___.', 'attributive': 'the original language of [S]'},
+    'P937': {'question': 'Which city did [S] work in?', 'cloze': '[S] worked in the city of ___.', 'attributive': 'the city where [S] worked'},
+    'P800': {'question': 'What is [S] famous for?', 'cloze': '[S] is famous for ___.', 'attributive': 'the thing that [S] is famous for'},
+    'P641': {'question': 'Which sport is [S] associated with?', 'cloze': '[S] is associated with the sport of ___.', 'attributive': 'the sport that [S] is associated with'},
+    'P413': {'question': 'What position does [S] play?', 'cloze': '[S] plays the position of ___.', 'attributive': 'the position that [S] plays'},
+    'P286': {'question': 'Who is the head coach of [S]?', 'cloze': 'The head coach of [S] is ___.', 'attributive': 'the head coach of [S]'},
+    'P159': {'question': 'Which city is the headquarter of [S] located in?', 'cloze': 'The headquarters of [S] is located in the city of ___.', 'attributive': 'the city where the headquarters of [S] is located'},
+    'P178': {'question': 'Who is the developer of [S]?', 'cloze': '[S] was developed by ___.', 'attributive': 'the developer of [S]'},
+    'P488': {'question': 'Who is the chairperson of [S]?', 'cloze': 'The chairperson of [S] is ___.', 'attributive': 'the chairperson of [S]'},
+    'P169': {'question': 'Who is the chief executive officer of [S]?', 'cloze': 'The chief executive officer of [S] is ___.', 'attributive': 'the chief executive officer of [S]'},
+    'P449': {'question': 'Who is the original broadcaster of [S]?', 'cloze': 'The original broadcaster of [S] is ___.', 'attributive': 'the original broadcaster of [S]'},
+    'P176': {'question': 'Which company is [S] produced by?', 'cloze': 'The company that produced [S] is ___.', 'attributive': 'the company that produced [S]'},
+    'P1037': {'question': 'Who is the director of [S]?', 'cloze': 'The director of [S] is ___.', 'attributive': 'the director of [S]'},
 }
+
+
+# Function to format the knowledge string for the 'grow' task
+def format_grow_knowledge(triple_item):
+    """
+    Formats a knowledge string for the 'grow' task using a triple and templates.
+    Args:
+        triple_item (dict): A dictionary like {'triple': ('Q_S', 'P_ID', 'Q_O'), 'triple_label': ('S_label', 'P_label', 'O_label')}.
+    Returns:
+        str: The formatted knowledge string (cloze statement).
+    """
+    s_label, p_label, o_label = triple_item['triple_label']
+    p_id = triple_item['triple'][1] # Property ID
+    assert p_id in ALLOWED_PROPS, f"Property ID {p_id} is not allowed."
+
+    cloze_template = PROBE_TEMPLATES[p_id]['cloze']
+    # Replace subject placeholder [S] and object placeholder ___
+    knowledge_str = cloze_template.replace('[S]', s_label).replace('___', o_label)
+    return knowledge_str
 
 
 # Function to simulate the generation of multi-hop questions
@@ -343,7 +362,7 @@ def process_chain(chain, args, chat_response_generator):
     if not chain:
         return {
             "triples": [],
-            "probe_question": "",
+            "probe_questions": [],
             "multihop_question": "",
             "multihop_answer": ""
         }
@@ -377,6 +396,7 @@ def process_chain(chain, args, chat_response_generator):
         probe_questions.append({
             "question": question,
             "answer": answer,
+            "knowledge": format_grow_knowledge(triple_dict),
         })
 
     # # Generate multi-hop questions (using the simulated API call)
