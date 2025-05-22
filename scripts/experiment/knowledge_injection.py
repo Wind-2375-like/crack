@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument('--data_size', type=int, default=100, help="Number of triples to process")
     parser.add_argument('--depth', type=int, default=4, help="Depth of the chain")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
-    parser.add_argument('--model_name', type=str, default="gpt-4o-mini", help="Model name for the API")
+    parser.add_argument('--model_name', type=str, default="llama-3.2-3b", help="Model name for the API")
     parser.add_argument('--task_name', type=str, default="grow", help="Task name")
     parser.add_argument('--inject_knowledge', action='store_true', help="Whether to inject knowledge into the input")
     parser.add_argument('--knowledge_aggregation_scope', type=int, default=1, help="Scope for aggregating 'unknown' knowledge. Must be >= 1. 1: item-specific. N (e.g., 10, 100): group of N items.")
@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument('--temperature', type=float, default=0.7, help="Temperature for the model")
     parser.add_argument('--top_p', type=float, default=0.7, help="Top-p sampling for the model")
     parser.add_argument('--top_k', type=int, default=50, help="Top-k sampling for the model")
-    parser.add_argument('--max_tokens', type=int, default=100, help="Maximum tokens for the model")
+    parser.add_argument('--max_tokens', type=int, default=512, help="Maximum tokens for the model")
     parser.add_argument('--num_responses', type=int, default=1, help="Number of responses to generate")
     return parser.parse_args()
 
@@ -59,7 +59,14 @@ def prepare_input(item, args, knowledge_to_inject_str=""):
         "\"The answer is ...\", and should be placed at the final step. "
         "Users may also provide a set of facts. If they conflict with your knowledge, you should update your "
         "knowledge and use the facts to answer the question.\n\n"
-        "[Here is one demonstration]\n\n"
+        "[Here are two demonstrations]\n\n"
+        "User:\nWhat is the capital of the country where Plainfield Town Hall is located?\n\n"
+        "Assistant:\n"
+        "1. Plainfield Town Hall is one of two town halls in Plainfield, New Hampshire.\n"
+        "2. New Hampshire is a state in the New England region of the Northeastern United States.\n"
+        "3. Thus, Plainfield Town Hall is located in the country of the United States of America. \n"
+        "4. The capital of United States is Washington, D.C.\n"
+        "5. The answer is Washington, D.C.\n\n"
         "User:\nWho is married to the British Prime Minister?\nPlease update your knowledge with the following facts:\n"
         "The name of the current head of the British government is Keir Starmer.\n\n"
         "Assistant:\n"
@@ -147,7 +154,7 @@ if __name__ == "__main__":
 
     eval_dataset = ReasoningEvalDataset(
         raw_path=f'data/{args.task_name}/test_{args.data_size}_depth_{args.depth}.pkl',
-        probe_path=f'data/eval_results/{args.task_name}/probe/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl',
+        probe_path=f'data/eval_results/{args.task_name}/probe/eval_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl',
     )
     
     with open(args.api_config_file, 'r') as f:
@@ -176,7 +183,6 @@ if __name__ == "__main__":
                 processed_item, usage = experiment(item, args, chat_response_generator, knowledge_to_inject_str="")
                 update_pbar(processed_item, usage, processed_data, token_counts, pbar, args.model_name)
         else:
-            # --- REWRITTEN KNOWLEDGE INJECTION LOGIC ---
             scope = args.knowledge_aggregation_scope
             
             # Outer loop iterates by groups, defined by the 'scope'
