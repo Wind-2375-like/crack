@@ -267,9 +267,9 @@ if __name__ == "__main__":
             # Process each chain
             processed_item, usage = evaluate_probe_item(item, args, chat_response_generator)
             # Update the total token counts
-            prompt_tokens += usage[args.evaluate_model_name]["prompt_tokens"]
-            completion_tokens += usage[args.evaluate_model_name]["completion_tokens"]
-            total_tokens += usage[args.evaluate_model_name]["total_tokens"]
+            prompt_tokens = usage[args.evaluate_model_name]["prompt_tokens"]
+            completion_tokens = usage[args.evaluate_model_name]["completion_tokens"]
+            total_tokens = usage[args.evaluate_model_name]["total_tokens"]
             # Append the processed chain to the list
             processed_data.append(processed_item)
             # Update the progress bar with the number of tokens used
@@ -277,9 +277,9 @@ if __name__ == "__main__":
             pbar.update(1)
             
             # Save the processed data to a new pickle file
-            with open(f'data/eval_results/{args.task_name}/probe/eval_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'wb') as f:
+            with open(f'data/eval_results/{args.task_name}/probe_evaluated/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'wb') as f:
                 pickle.dump(processed_data, f)
 
     # Save the processed data to a new pickle file
-    with open(f'data/eval_results/{args.task_name}/probe/eval_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'wb') as f:
+    with open(f'data/eval_results/{args.task_name}/probe_evaluated/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'wb') as f:
         pickle.dump(processed_data, f)
