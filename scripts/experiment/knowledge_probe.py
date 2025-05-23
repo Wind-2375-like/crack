@@ -102,9 +102,9 @@ if __name__ == "__main__":
             processed_item, usage = probe_item(item, args, chat_response_generator)
             # Update the total token counts
             translated_model_name = translate_model_name(args.model_name)
-            prompt_tokens += usage[translated_model_name]["prompt_tokens"]
-            completion_tokens += usage[translated_model_name]["completion_tokens"]
-            total_tokens += usage[translated_model_name]["total_tokens"]
+            prompt_tokens = usage[translated_model_name]["prompt_tokens"]
+            completion_tokens = usage[translated_model_name]["completion_tokens"]
+            total_tokens = usage[translated_model_name]["total_tokens"]
             # Append the processed chain to the list
             processed_data.append(processed_item)
             # Update the progress bar with the number of tokens used

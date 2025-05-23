@@ -139,9 +139,9 @@ def extract_required_unknown_knowledge(items_list):
 def update_pbar(processed_item, usage, processed_data_list, token_counts_dict, pbar_instance, model_name_str): # Renamed from _process_and_update_results
     """Helper to update token counts, append data, and refresh progress bar."""
     translated_model_name = translate_model_name(model_name_str)
-    token_counts_dict['prompt'] += usage[translated_model_name]["prompt_tokens"]
-    token_counts_dict['completion'] += usage[translated_model_name]["completion_tokens"]
-    token_counts_dict['total'] += usage[translated_model_name]["total_tokens"]
+    token_counts_dict['prompt'] = usage[translated_model_name]["prompt_tokens"]
+    token_counts_dict['completion'] = usage[translated_model_name]["completion_tokens"]
+    token_counts_dict['total'] = usage[translated_model_name]["total_tokens"]
     processed_data_list.append(processed_item)
     pbar_instance.set_postfix_str(f"Prompt: {token_counts_dict['prompt']}, Completion: {token_counts_dict['completion']}, Total: {token_counts_dict['total']}")
     pbar_instance.update(1)
