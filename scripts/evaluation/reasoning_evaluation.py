@@ -86,11 +86,6 @@ def parse_args():
     parser.add_argument('--inject_knowledge', action='store_true', help="Whether to inject knowledge into the input")
     parser.add_argument('--knowledge_aggregation_scope', type=int, default=1, help="Scope for aggregating 'unknown' knowledge. Must be >= 1. 1: item-specific. N (e.g., 10, 100): group of N items.")
     parser.add_argument('--method', type=str, default="base", help="Method to use for complex reasoning amid conflicting knowledge")
-    parser.add_argument('--temperature', type=float, default=0.7, help="Temperature for the model")
-    parser.add_argument('--top_p', type=float, default=0.7, help="Top-p sampling for the model")
-    parser.add_argument('--top_k', type=int, default=50, help="Top-k sampling for the model")
-    parser.add_argument('--max_tokens', type=int, default=512, help="Maximum tokens for the model")
-    parser.add_argument('--num_responses', type=int, default=1, help="Number of responses to generate")
     return parser.parse_args()
 
 
@@ -171,7 +166,7 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
     ])
     raw_equivalence_response = chat_response_generator.generate_response(
         llm_input_prompt_equivalence,
-        temperature=0, top_p=1, top_k=1, n=1, max_tokens=100
+        temperature=0, top_p=1, n=1, max_tokens=100
     )[0]
     
     final_answer_correct, final_answer_explanation = _parse_llm_equivalence_response(raw_equivalence_response)
@@ -194,7 +189,7 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
         
         raw_nli_response = chat_response_generator.generate_response(
             llm_input_prompt_nli,
-            temperature=0, top_p=1, top_k=1, n=1, max_tokens=100
+            temperature=0, top_p=1, n=1, max_tokens=100
         )[0]
         
         nli_class, nli_explanation = _parse_nli_response(raw_nli_response)

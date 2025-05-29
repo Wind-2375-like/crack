@@ -55,7 +55,6 @@ class ChatResponseGenerator:
     def generate_response(self, query, **kwargs):
         """ Generate a list of thoughts for the given question using the specified model. 
             Either OpenAI's GPT-4o's or Together's Models' API can be used.
-            Note that `top_k` is not supported by OpenAI's API, so you can not fix the randomness of OpenAI models.
             Each thought in a CoT list is represented as (sentence, label) where label is one of [evidence], [reasoning], and [claim].
         """
         n = kwargs.get("n", 1)

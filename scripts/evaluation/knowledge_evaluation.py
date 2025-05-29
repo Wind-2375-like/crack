@@ -157,7 +157,7 @@ def evaluate_probe_item(item, args, chat_response_generator):
             )
             llm_responses = chat_response_generator.generate_response(
                 llm_input_prompt,
-                temperature=0, top_p=1, top_k=1, n=1, max_tokens=100
+                temperature=0, top_p=1, n=1, max_tokens=100
             )
             raw_llm_response = llm_responses[0]
             is_equivalent, explanation = _parse_llm_equivalence_response(raw_llm_response)

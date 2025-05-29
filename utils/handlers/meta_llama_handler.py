@@ -29,7 +29,6 @@ class MetaLlamaHandler(BaseModelHandler):
     def generate_response(self, formatted_input, **kwargs):
         temperature = kwargs.get("temperature", 0)
         top_p = kwargs.get("top_p", 1)
-        top_k = kwargs.get("top_k", 1)
         n = kwargs.get("n", 1)
         max_tokens = kwargs.get("max_tokens", 512)
 
@@ -42,7 +41,6 @@ class MetaLlamaHandler(BaseModelHandler):
         #         do_sample=True,
         #         temperature=temperature,
         #         top_p=top_p,
-        #         top_k=top_k,
         #         num_return_sequences=1,
         #         pad_token_id=self.pipeline.tokenizer.eos_token_id,
         #     )[0])
@@ -56,7 +54,6 @@ class MetaLlamaHandler(BaseModelHandler):
             do_sample=True,
             temperature=temperature,
             top_p=top_p,
-            top_k=top_k,
             num_return_sequences=n,
             pad_token_id=self.pipeline.tokenizer.eos_token_id,
         )

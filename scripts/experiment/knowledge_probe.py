@@ -26,7 +26,6 @@ def parse_args():
     parser.add_argument('--task_name', type=str, default="grow", help="Task name")
     parser.add_argument('--temperature', type=float, default=0.7, help="Temperature for the model")
     parser.add_argument('--top_p', type=float, default=0.7, help="Top-p sampling for the model")
-    parser.add_argument('--top_k', type=int, default=50, help="Top-k sampling for the model")
     parser.add_argument('--max_tokens', type=int, default=100, help="Maximum tokens for the model")
     parser.add_argument('--num_responses', type=int, default=10, help="Number of responses to generate")
     return parser.parse_args()
@@ -58,7 +57,6 @@ def probe_item(item, args, chat_response_generator):
         f"User:\n{item["question"]}\nAssistant:\n",
         temperature=args.temperature,
         top_p=args.top_p,
-        top_k=args.top_k,
         n=args.num_responses,
         max_tokens=args.max_tokens,
     )

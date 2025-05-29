@@ -49,7 +49,6 @@ python scripts/experiment/knowledge_probe.py \
     --task_name grow \                          # Can be grow (Graph Reasoning On Wikidata) or cue (Code-generation Using External APIs)
     --temperature 0.7 \
     --top_p 0.7 \
-    --top_k 50 \
     --max_tokens 100 \
     --num_responses 10
 ```
@@ -77,7 +76,6 @@ python scripts/experiment/knowledge_injection.py \
     --task_name grow \                          # Can be grow (Graph Reasoning On Wikidata) or cue (Code-generation Using External APIs)
     --temperature 0.7 \
     --top_p 0.7 \
-    --top_k 50 \
     --max_tokens 512 \
     --inject_knowledge \                        # Whether to inject knowledge
     --knowledge_aggregation_method 1 \          # Scope for aggregating 'unknown' knowledge. Must be >= 1. 1: item-specific. N (e.g., 10, 100): group of N items.
