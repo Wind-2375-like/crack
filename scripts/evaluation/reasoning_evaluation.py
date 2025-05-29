@@ -34,22 +34,29 @@ NLI:
 Entailment. The context initially stated that Rishi Sunak is the current Prime Minister, but later it corrected that Keir Starmer is the current head of government.
 
 Context:
-1. As of my knowledge cutoff in December 2023, the current Prime Minister of the United Kingdom is Rishi Sunak, and Keir Starmer's spouse is Victoria Starmer.
-2. The user provided that Keir Starmer is the current head of government. As of my knowledge, he is the leader of the Opposition and the leader of the Labour Party in the UK. So it is possible that he is the Prime Minister now.
-3. Therefore, the current British Prime Minister is Keir Starmer.
-4. Victoria Starmer is married to British Prime Minister.
-5. The answer is Victoria Starmer.
+... (the same context as above)
 Statement:
 The name of the current head of the British government is Rishi Sunak.
 NLI:
 Contradiction. The context initially stated that Rishi Sunak is the current Prime Minister, but later it corrected that Keir Starmer is the current head of government.
 
 Context:
-1. As of my knowledge cutoff in December 2023, the current Prime Minister of the United Kingdom is Rishi Sunak, and Keir Starmer's spouse is Victoria Starmer.
-2. The user provided that Keir Starmer is the current head of government. As of my knowledge, he is the leader of the Opposition and the leader of the Labour Party in the UK. So it is possible that he is the Prime Minister now.
-3. Therefore, the current British Prime Minister is Keir Starmer.
-4. Victoria Starmer is married to British Prime Minister.
-5. The answer is Victoria Starmer.
+... (the same context as above)
+Statement:
+The name of the current head of the US government is Donald Trump.
+NLI:
+Neutral. The context does not provide any information about the current head of the US government.
+
+Context:
+1. I don't know the current head of the British government.
+2. I don't have the information about the answer.
+Statement:
+The name of the current head of the British government is Keir Starmer.
+NLI:
+Contradiction. The context states that it does not know the current head of the British government, which contradicts the statement that Keir Starmer is the current head of the British government.
+
+Context:
+... (the same context as above)
 Statement:
 The name of the current head of the US government is Donald Trump.
 NLI:

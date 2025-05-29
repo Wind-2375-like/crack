@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument('--data_size', type=int, default=100, help="Number of triples to process")
     parser.add_argument('--depth', type=int, default=4, help="Depth of the chain")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
-    parser.add_argument('--model_name', type=str, default="gpt-4o-mini", help="Model name for the API")
+    parser.add_argument('--model_name', type=str, default="llama-3.2-3b", help="Model name for the API")
     parser.add_argument('--task_name', type=str, default="grow", help="Task name")
     parser.add_argument('--temperature', type=float, default=0.7, help="Temperature for the model")
     parser.add_argument('--top_p', type=float, default=0.7, help="Top-p sampling for the model")

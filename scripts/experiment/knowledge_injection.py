@@ -51,38 +51,46 @@ def prepare_input(item, args, knowledge_to_inject_str=""):
             - prepared_user_prompt (str): The user prompt for the model.
             - prepared_system_prompt (str): The system prompt for the model.
     """
-    
-    unified_system_prompt = (
-        "You are given a question. To answer the question, you should think step by step. "
-        "Use line breaks between steps, but do not use line breaks within each step. "
-        "You should number each step. The final answer to the question should start with "
-        "\"The answer is ...\", and should be placed at the final step. "
-        "Users may also provide a set of facts. If they conflict with your knowledge, you should update your "
-        "knowledge and use the facts to answer the question.\n\n"
-        "[Here are two demonstrations]\n\n"
-        "User:\nWhat is the capital of the country where Plainfield Town Hall is located?\n\n"
-        "Assistant:\n"
-        "1. Plainfield Town Hall is one of two town halls in Plainfield, New Hampshire.\n"
-        "2. New Hampshire is a state in the New England region of the Northeastern United States.\n"
-        "3. Thus, Plainfield Town Hall is located in the country of the United States of America. \n"
-        "4. The capital of United States is Washington, D.C.\n"
-        "5. The answer is Washington, D.C.\n\n"
-        "User:\nWho is married to the British Prime Minister?\nPlease update your knowledge with the following facts:\n"
-        "The name of the current head of the British government is Keir Starmer.\n\n"
-        "Assistant:\n"
-        "1. As of my knowledge cutoff in December 2023, the current Prime Minister of the United Kingdom is Rishi Sunak, and Keir Starmer's spouse is Victoria Starmer.\n"
-        "2. The user provided that Keir Starmer is the current head of government. As of my knowledge, he is the leader of the Opposition and the leader of the Labour Party in the UK. So it is possible that he is the Prime Minister now.\n"
-        "3. Therefore, the current British Prime Minister is Keir Starmer.\n"
-        "4. Victoria Starmer is married to British Prime Minister.\n"
-        "5. The answer is Victoria Starmer."
-    )
-    
-    prepared_system_prompt = unified_system_prompt
 
     if args.task_name == "grow":
+        system_prompt_without_injection = (
+            "You are given a question. To answer the question, you should think step by step. "
+            "Use line breaks between steps, but do not use line breaks within each step. "
+            "The final answer to the question should start with "
+            "\"The answer is ...\", and should be placed at the final step. "
+            "Please make an educated guess and always return an entity.\n\n"
+            "[Here is one demonstration]\n\n"
+            "User:\nWhat is the capital of the country where Plainfield Town Hall was created?\n\n"
+            "Assistant:\n"
+            "1. Given my knowledge, Plainfield Town Hall was created in the United States of America.\n"
+            "2. Given my knowledge, the capital of United States is Washington, D.C.\n"
+            "3. Therefore, the capital of the country where Plainfield Town Hall was created is Washington, D.C.\n"
+            "4. The answer is Washington, D.C.\n\n"
+        )
+        
+        system_prompt_after_injection = (
+            "You are given a question. To answer the question, you should think step by step. "
+            "Use line breaks between steps, but do not use line breaks within each step. "
+            "The final answer to the question should start with "
+            "\"The answer is ...\", and should be placed at the final step. "
+            "Please make an educated guess and always return an entity. "
+            "Users may provide a set of facts or not. If they provide facts that conflict with your knowledge, you should update your "
+            "knowledge and use the facts to answer the question.\n\n"
+            "[Here is one demonstration]\n\n"
+            "User:\nWho is the person who is the current head of government of British married to?\nPlease update your knowledge with the following facts:\n"
+            "The name of the current head of the British government is Keir Starmer.\n\n"
+            "Assistant:\n"
+            "1. The user provided that Keir Starmer is the current head of government of the British government.\n"
+            "2. I will update my knowledge with the provided fact: the current head of government of the British government is Keir Starmer.\n"
+            "3. Given my knowledge, Keir Starmer is married to Victoria Starmer.\n"
+            "4. Therefore, the person who is the current head of government of British married to is Victoria Starmer.\n"
+            "5. The answer is Victoria Starmer."
+        )
         if args.inject_knowledge and knowledge_to_inject_str: # Inject only if flag is true AND there's knowledge
+            prepared_system_prompt = system_prompt_after_injection
             prepared_user_prompt = f"User:\n{item['question']}\nPlease update your knowledge with the following facts:\n{knowledge_to_inject_str}\nAssistant:\n"
         else: # No knowledge injection or no "unknown" knowledge found for this scope
+            prepared_system_prompt = system_prompt_without_injection
             prepared_user_prompt = f"User:\n{item['question']}\nAssistant:\n"
     else:
         raise NotImplementedError(f"Task {args.task_name} is not implemented.")
@@ -154,7 +162,7 @@ if __name__ == "__main__":
 
     eval_dataset = ReasoningEvalDataset(
         raw_path=f'data/{args.task_name}/test_{args.data_size}_depth_{args.depth}.pkl',
-        probe_path=f'data/eval_results/{args.task_name}/probe/eval_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl',
+        probe_path=f'data/eval_results/{args.task_name}/probe_evaluated/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl',
     )
     
     with open(args.api_config_file, 'r') as f:
