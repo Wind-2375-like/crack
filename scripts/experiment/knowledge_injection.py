@@ -29,7 +29,6 @@ def parse_args():
     parser.add_argument('--method', type=str, default="base", help="Method to use for complex reasoning amid conflicting knowledge")
     parser.add_argument('--temperature', type=float, default=0.7, help="Temperature for the model")
     parser.add_argument('--top_p', type=float, default=0.7, help="Top-p sampling for the model")
-    parser.add_argument('--top_k', type=int, default=50, help="Top-k sampling for the model")
     parser.add_argument('--max_tokens', type=int, default=512, help="Maximum tokens for the model")
     parser.add_argument('--num_responses', type=int, default=1, help="Number of responses to generate")
     return parser.parse_args()
@@ -121,7 +120,6 @@ def experiment(item, args, chat_response_generator, knowledge_to_inject_str=""):
         prepared_user_prompt,
         temperature=args.temperature,
         top_p=args.top_p,
-        top_k=args.top_k,
         n=args.num_responses,
         max_tokens=args.max_tokens,
     )[0].replace("Assistant:", "").strip()

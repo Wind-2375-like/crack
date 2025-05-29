@@ -23,7 +23,6 @@ class TogetherChatClient(BaseChatClient):
     def create(self, messages, **kwargs):
         temperature = kwargs.get("temperature", 0)
         top_p = kwargs.get("top_p", 1)
-        top_k = kwargs.get("top_k", 1)
         n = kwargs.get("n", 1)
         frequency_penalty = kwargs.get("frequency_penalty", 0)
         presence_penalty = kwargs.get("presence_penalty", 0)
@@ -36,7 +35,6 @@ class TogetherChatClient(BaseChatClient):
             max_tokens=max_tokens,
             temperature=temperature,
             top_p=top_p,
-            top_k=top_k,
             n=n,
             frequency_penalty=frequency_penalty,
             presence_penalty=presence_penalty,
