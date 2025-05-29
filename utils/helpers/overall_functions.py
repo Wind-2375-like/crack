@@ -10,6 +10,8 @@ def translate_model_name(model_name: str) -> str:
     """
     # Define a mapping of model names to their user-friendly versions
     model_name_mapping = {
+        "llama-3.2-1b": "meta-llama/Llama-3.2-1B-Instruct",
+        "llama-3.2-1b-turbo": "meta-llama/Llama-3.2-1B-Instruct-Turbo",
         "llama-3.2-3b": "meta-llama/Llama-3.2-3B-Instruct",
         "llama-3.2-3b-turbo": "meta-llama/Llama-3.2-3B-Instruct-Turbo",
         "llama-3.2-90b": "meta-llama/Llama-3.2-90B-Vision-Instruct",
