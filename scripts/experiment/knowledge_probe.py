@@ -109,7 +109,7 @@ if __name__ == "__main__":
             pbar.set_postfix_str(f"Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
             pbar.update(1)
             # Save the processed data on the fly
-            with open(f'data/{args.task_name}/probe_test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'wb') as f:
+            with open(f'data/eval_results/{args.task_name}/probe/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'wb') as f:
                 pickle.dump(processed_data, f)
 
     # Save the processed data to a new pickle file
