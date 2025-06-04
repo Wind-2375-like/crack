@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(project_root)
@@ -79,18 +80,20 @@ If they are equivalent, answer 'Yes' and provide an explanation. Otherwise, answ
 
 Note that if the response does not contain an entity, it should be treated as 'N/A' and not equivalent to the answer.
 """,
-"code": """You are given a ground truth function call from a library, a corresponding docstring for the function call, and the model's response. Each response might also contain a function call from a library. Your task is to use basic Python coding knowledge to evaluate whether the model's response most probably contains a function call that is equivalent to the ground truth function call.
+"code": """You are given a question, a canonical function from a library for the question, a corresponding docstring, and the model's response. Each response might also contain a function call from a library. Your task is to use basic Python coding knowledge to evaluate whether the model's response is most probably correct.
 
-If they are equivalent, answer 'Yes' and provide an explanation. Otherwise, answer 'No' and provide an explanation.
+If the answer is correct, answer 'Yes' and provide an explanation. Otherwise, answer 'No' and provide an explanation.
 
-Note that if the response does not contain a function call, it should be treated as 'N/A' and not equivalent to the ground truth function call.
+Note that if the response does not contain a function call, it should be treated as 'N/A' and not correct.
 
-Examples:
+--- Examples 1 ---
 
-Ground truth function call:
-pandas.DataFrame(data)
-Docstring:
-Two-dimensional, size-mutable, potentially heterogeneous tabular data.
+Question: 
+Given the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?
+
+Function: pandas.DataFrame(data)
+
+Docstring: Two-dimensional, size-mutable, potentially heterogeneous tabular data.
 
 Data structure also contains labeled axes (rows and columns).
 Arithmetic operations align on both row and column labels. Can be
@@ -124,30 +127,47 @@ copy : bool or None, default None
     If data is a dict containing one or more Series (possibly of different dtypes),
     ``copy=False`` will ensure that these inputs are not copied.
 ...
+
 Response:
 ```python
 pandas.DataFrame(arr)
-Equivalence:
+```
+
+Correct:
 Yes, the response contains the same function call as the ground truth function call. The function call `pandas.DataFrame(arr)` is equivalent to the ground truth function call, which creates a DataFrame from the provided data.
 
-Ground truth function call:
-pandas.DataFrame(data)
-Docstring:
-... (the same docstring as above)
+--- Example 2 ---
+
+Question: 
+... (the same function as above)
+
+Function: pandas.DataFrame(data)
+
+Docstring: ... (the same docstring as above)
+
 Response:
 ```python
-pandas.DataFrame(arr, dtype=None)
-Equivalence:
-Yes, the response contains the same function call as the ground truth function call. The function call `pandas.DataFrame(arr, dtype=None)` is equivalent to the ground truth function call, which creates a DataFrame from the provided data. The `dtype` parameter is optional and defaults to None, so it does not change the equivalence.
+pandas.DataFrame(\{"id": [0, 1, 2, 3, 4], "val": [100, 200, -2, 34, 45.2]\}, dtype=None)
+```
 
-Ground truth function call:
-pandas.DataFrame(data)
-Docstring:
-... (the same docstring as above)
+Correct:
+Yes, the response contains the same function call as the ground truth function call. The function call `pandas.DataFrame(\{"id": [0, 1, 2, 3, 4], "val": [100, 200, -2, 34, 45.2]\}, dtype=None)` is equivalent to the ground truth function call, which creates a DataFrame from the provided data. The `dtype` parameter is optional and defaults to None, so it does not change the equivalence.
+
+--- Example 3 ---
+
+Question: 
+... (the same function as above)
+
+Function: pandas.DataFrame(data)
+
+Docstring: ... (the same docstring as above)
+
 Response:
 ```python
 pandas.DataFrame(data, dtype="float")
-Equivalence:
+```
+
+Correct:
 No, the response contains a different function call than the ground truth function call. The function call `pandas.DataFrame(data, dtype="float")` specifies a dtype of "float", which is not equivalent to the ground truth function call that does not specify a dtype. The ground truth function call creates a DataFrame from the provided data without any specific dtype.
 """
 }
@@ -186,7 +206,7 @@ def evaluate_probe_item(item, args, chat_response_generator):
         Parses the LLM's response for equivalence check.
         Returns a tuple: (is_equivalent_bool, explanation_str)
         """
-        response_text_stripped = response_text.replace("Equivalence:", "").strip()
+        response_text_stripped = response_text.replace("Equivalence:", "").replace("Correct:", "").strip()
         response_text_lower = response_text_stripped.lower()
         explanation = response_text_stripped
 
@@ -204,9 +224,20 @@ def evaluate_probe_item(item, args, chat_response_generator):
         ("system", system_prompt),
     ])
 
-    probe_answers_from_item = item["probe_answers"]
+    if args.task_name == "grow":
+        probe_answers_from_item = item["probe_answers"]
+    elif args.task_name == "code":
+        probe_answers_from_item = []
+        for i in item["probe_answers"]:
+            match = re.search(r"```python\s*([\s\S]*?)\s*```", i)
+            if match:
+                probe_answers_from_item.append(match.group(-1).strip())
+            else:
+                probe_answers_from_item.append("N/A")
+        
     ground_truth_answer_text = item["answer"]
     question_text = item["question"]
+    knowledge_text = item["knowledge"]
     total_votes = len(probe_answers_from_item)
 
     # Step 1: Group original probe answers by frequency
@@ -219,13 +250,22 @@ def evaluate_probe_item(item, args, chat_response_generator):
 
     for p_answer_instance in probe_answers_from_item:
         if p_answer_instance not in unique_answer_eval_cache:
-            # This unique probe answer hasn't been evaluated yet
-            llm_input_prompt = (
-                f"Question:\n{question_text}\n"
-                f"Response:\n{p_answer_instance}\n"
-                f"Answer:\n{ground_truth_answer_text}\n"
-                f"Equivalence:\n"
-            )
+            if args.task_name == "grow":
+                llm_input_prompt = (
+                    f"Question:\n{question_text}\n"
+                    f"Response:\n{p_answer_instance}\n"
+                    f"Answer:\n{ground_truth_answer_text}\n"
+                    f"Equivalence:\n"
+                )
+            elif args.task_name == "code":
+                llm_input_prompt = (
+                    f"Question:\n{question_text}\n\n"
+                    f"{knowledge_text}\n\n"
+                    f"Response:\n```python\n{p_answer_instance}\n```\n\n"
+                    f"Correct:\n"
+                )
+            else:
+                raise NotImplementedError
             llm_responses = chat_response_generator.generate_response(
                 llm_input_prompt,
                 temperature=0, top_p=1, n=1, max_tokens=100

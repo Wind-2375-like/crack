@@ -16,6 +16,12 @@ def translate_model_name(model_name: str) -> str:
         "llama-3.2-3b-turbo": "meta-llama/Llama-3.2-3B-Instruct-Turbo",
         "llama-3.2-90b": "meta-llama/Llama-3.2-90B-Vision-Instruct",
         "llama-3.2-90b-turbo": "meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
+        "qwen-2.5-1.5b": 'Qwen/Qwen2.5-1.5B-Instruct',
+        "qwen-2.5-3b": 'Qwen/Qwen2.5-3B-Instruct',
+        "qwen-2.5-7b": 'Qwen/Qwen2.5-7B-Instruct',
+        "qwen-2.5-14b": 'Qwen/Qwen2.5-14B-Instruct',
+        "olmo-2-1b": "allenai/OLMo-2-0425-1B-Instruct",
+        "olmo-2-7b": "allenai/OLMo-2-1124-7B-Instruct",
     }
     
     # Return the translated model name or the original if not found
