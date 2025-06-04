@@ -1,6 +1,8 @@
 from utils.clients.base_chat_client import BaseChatClient
 from utils.handlers.meta_llama_handler import MetaLlamaHandler
 from utils.handlers.meta_vllama_handler import MetaVLlamaHandler
+from utils.handlers.qwen_handler import QwenHandler
+from utils.handlers.olmo_handler import OlmoHandler
 
 class DotDict(dict):
     def __getattr__(self, item):
@@ -21,6 +23,12 @@ class LocalChatClient(BaseChatClient):
         'meta-llama/Llama-3.2-1B-Instruct': MetaLlamaHandler,
         'meta-llama/Llama-3.2-3B-Instruct': MetaLlamaHandler,
         'meta-llama/Llama-3.2-11B-Vision-Instruct': MetaVLlamaHandler,
+        'Qwen/Qwen2.5-1.5B-Instruct': QwenHandler,
+        'Qwen/Qwen2.5-3B-Instruct': QwenHandler,
+        'Qwen/Qwen2.5-7B-Instruct': QwenHandler,
+        'Qwen/Qwen2.5-14B-Instruct': QwenHandler,
+        "allenai/OLMo-2-0425-1B-Instruct": OlmoHandler,
+        "allenai/OLMo-2-1124-7B-Instruct": OlmoHandler,
         # Add more models and handlers as needed
     }
 

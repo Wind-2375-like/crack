@@ -416,12 +416,12 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
         item["final_answer_explanation"] = final_answer_explanation
     elif args.task_name == "code":
         unit_test = item.get("other_metadata", {}).get("test", "")
-        model_final_answer_candidate = ""
+        model_final_answer_candidate = "N/A"
         if item.get("model_response") and item["model_response"].strip():
             # Extract coding block between ```python and ```
             match = re.search(r"```python\s*([\s\S]*?)\s*```", item["model_response"])
             if match:
-                model_final_answer_candidate = match.group(-1)
+                model_final_answer_candidate = match.group(-1).strip()
         final_answer_correct, final_answer_explanation = _execute_llm_generated_code_and_test(model_final_answer_candidate, unit_test)
         item["final_answer_correct"] = final_answer_correct
         item["final_answer_explanation"] = final_answer_explanation
@@ -443,7 +443,7 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
         elif args.task_name == "code":
             llm_input_prompt_nli = (
                 f"Code:\n```python\n{model_final_answer_candidate}\n```\n\n"
-                f"{knowledge_text}"
+                f"{knowledge_text}\n\n"
                 f"NLI:\n"
             )
         
