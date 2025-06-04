@@ -49,10 +49,15 @@ def probe_item(item, args, chat_response_generator):
     """
     
     # 1. Get the model answers for each multihop question
-    chat_response_generator.update_chat_history([
-        ("system", "Answer the question with the name of an entity. Provide only the name of the entity as your answer. Please make an educated guess and always return an entity.\n\n[Here is one demonstration]\n\nUser:\nWho is the developer of Telegram?\n\nAssistant:\nTelegram FZ-LLC"),
-    ])
-    
+    if args.task_name == "grow":
+        chat_response_generator.update_chat_history([
+            ("system", "Answer the question with the name of an entity. Provide only the name of the entity as your answer. Please make an educated guess and always return an entity.\n\n[Here is one demonstration]\n\nUser:\nWho is the developer of Telegram?\n\nAssistant:\nTelegram FZ-LLC"),
+        ])
+    elif args.task_name == "code":
+        chat_response_generator.update_chat_history([
+            ("system", "Answer the question with a Python code snippet representing a direct function or class constructor call from a library.\nProvide ONLY the function or constructor call itself.\n- Do NOT include import statements.\n- Do NOT include example data, variable assignments, or any other code.\n- If the question implies specific arguments, include them.\n- If the question asks for a general or default way to do something and does not specify arguments, provide the call with empty parentheses `()` if it's a constructor or function that can be called without mandatory arguments.\n- Please make an educated guess and always return a function call.\n\n[Here is one demonstration]\n\nUser:\nGiven the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?\n\nAssistant:\n```python\npandas.DataFrame(data)\n```"),
+        ])
+
     responses = chat_response_generator.generate_response(
         f"User:\n{item["question"]}\nAssistant:\n",
         temperature=args.temperature,

@@ -1,11 +1,15 @@
 import os
+import re
 import sys
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(project_root)
 
+import io
 import json
 import pickle
 import argparse
+import unittest
+import traceback
 from tqdm import tqdm
 from utils.generator.chat_response_generator import ChatResponseGenerator
 from scripts.evaluation.knowledge_evaluation import PROMPT_TEMPLATES as PROMPT_TEMPLATES_EQUIVALENCE
@@ -61,6 +65,126 @@ Statement:
 The name of the current head of the US government is Donald Trump.
 NLI:
 Neutral. The context does not provide any information about the current head of the US government.
+""",
+    "default": """You are an expert in natural language inference and commonsense reasoning. You will be given a "Context" (the model's reasoning response) and a "Statement" (a piece of knowledge). Your task is to determine if the Context finally entails, contradicts, or is neutral with respect to the Statement.
+    
+Answer "Entailment", "Contradiction", or "Neutral" and provide a brief explanation of your reasoning.
+
+Note that if the Context mentions some knowledge is "unknown", it should be treated as "N/A" and contradictory to the Statement.
+""",
+    "code": """You are an expert in natural language inference and coding. You will be given a "Context" (the model's reasoning response) and a "Statement" (a piece of knowledge). Your task is to determine if the Context finally entails, contradicts, or is neutral with respect to the Statement.
+
+Answer "Entailment", "Contradiction", or "Neutral" and provide a brief explanation of your reasoning.
+
+Note that if the Context mentions some knowledge is "unknown", it should be treated as "N/A" and contradictory to the Statement.
+
+--- Example 1 ---
+
+Code:
+```python
+import pandas as pd
+
+def task_func(dealer_sales_data):
+    # Step 1: Create DataFrame & Step 2: Handle Empty Input (if dealer_sales_data is empty)
+    df = pd.DataFrame(dealer_sales_data)
+    
+    if not dealer_sales_data:
+        return []
+
+    # Ensure 'id' and 'num_sold' columns exist, otherwise it's malformed input
+    if 'id' not in df.columns or 'num_sold' not in df.columns:
+        return []
+
+    # Step 3: Find Max Sales
+    max_sold = df['num_sold'].max()
+
+    # Step 4: Identify Top Sellers
+    top_selling_cars = df[df['num_sold'] == max_sold]
+
+    # Step 5: Extract and Sort IDs
+    top_selling_ids = top_selling_cars['id'].tolist()
+    sorted_ids = sorted(top_selling_ids)
+
+    # Step 6: Return Result
+    return sorted_ids
+```
+
+Function: pandas.DataFrame(data)
+
+Docstring: Two-dimensional, size-mutable, potentially heterogeneous tabular data...
+
+Parameters
+----------
+data : ndarray (structured or homogeneous), ...
+...
+dtype : dtype, default None
+    Data type to force. Only a single dtype is allowed. If None, infer.
+...
+
+NLI:
+Entailment. The code contains the function call `pd.DataFrame(dealer_sales_data)`. The usage `pd.DataFrame(dealer_sales_data)` is entailed in the docstring. Only one positional parameter and no optional parameters.
+
+--- Example 2 ---
+
+Code:
+```python
+import pandas as pd
+
+def task_func(dealer_sales_data):
+    # Step 1: Create DataFrame & Step 2: Handle Empty Input (if dealer_sales_data is empty)
+    df = pd.DataFrame(dealer_sales_data, datatype="float")
+    
+    if not dealer_sales_data:
+        return []
+
+    # Ensure 'id' and 'num_sold' columns exist, otherwise it's malformed input
+    if 'id' not in df.columns or 'num_sold' not in df.columns:
+        return []
+
+    # Step 3: Find Max Sales
+    max_sold = df['num_sold'].max()
+
+    # Step 4: Identify Top Sellers
+    top_selling_cars = df[df['num_sold'] == max_sold]
+
+    # Step 5: Extract and Sort IDs
+    top_selling_ids = top_selling_cars['id'].tolist()
+    sorted_ids = sorted(top_selling_ids)
+
+    # Step 6: Return Result
+    return sorted_ids
+```
+
+Function: pandas.DataFrame(data)
+
+Docstring: ... (the same as above)
+
+NLI:
+Contradiction. The code contains a related function call `pd.DataFrame(dealer_sales_data, datatype="float")`, but it uses a different keyword argument `datatype` which does not exist in the docstring. The usage of the function contradicts with the docstring.
+
+--- Example 3 ---
+
+Code:
+... (the same code as above)
+
+Function: sklearn.linear_model.LinearRegression()
+
+Docstring: Ordinary least squares Linear Regression...
+
+NLI:
+Neutral. The code does not contain any function call related to the docstring.
+
+--- Example 4 ---
+
+Code:
+N/A
+
+Function: ... (any function)
+
+Docstring: ... (any docstring)
+
+NLI:
+Neutral. The code does not contain any function call related to the docstring.
 """,
     "default": """You are an expert in natural language inference and commonsense reasoning. You will be given a "Context" (the model's reasoning response) and a "Statement" (a piece of knowledge). Your task is to determine if the Context finally entails, contradicts, or is neutral with respect to the Statement.
     
@@ -124,6 +248,123 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
         explanation = response_text_stripped
             
         return is_equivalent, explanation
+    
+    def _execute_llm_generated_code_and_test(model_final_answer_candidate: str, unit_test_str: str):
+        """
+        Execute the LLM's generated code against a set of unit tests.
+
+        Args:
+            model_final_answer_candidate: A string containing the Python code
+                                        generated by the LLM (expected to define 'task_func').
+            unit_test_str: A string containing the Python unittest code
+                        (expected to define a 'TestCases' class that uses 'task_func').
+
+        Returns:
+            A tuple (model_pass: bool, explanation: str).
+            model_pass is True if all tests pass, False otherwise.
+            explanation provides details of the test run or errors.
+        """
+        if model_final_answer_candidate is None:
+            model_final_answer_candidate = "" # Ensure it's a string
+
+        # Combine the LLM's code (defining task_func) with the unit tests
+        # task_func should be defined before TestCases uses it.
+        full_code = model_final_answer_candidate + "\n\n" + unit_test_str
+
+        # Prepare a global environment for the execution.
+        # Setting __name__ to __main__ can be important if the script has checks like
+        # if __name__ == "__main__":, though not typical for just function and class defs.
+        execution_globals = {"__name__": "__main__"}
+
+        try:
+            # First, try to compile the combined code to catch syntax errors early.
+            compiled_code = compile(full_code, '<string>', 'exec')
+        except SyntaxError as e:
+            model_pass = False
+            # Format a detailed syntax error message
+            error_line_text = e.text.rstrip() if e.text else "N/A"
+            caret_line = ""
+            if e.text and e.offset is not None:
+                caret_line = "\n" + " " * (e.offset - 1) + "^" if e.offset > 0 else "\n^"
+            
+            explanation = (
+                f"Compilation Error (SyntaxError):\n"
+                f"  Message: {e.msg}\n"
+                f"  Line number: {e.lineno}\n"
+                f"  Offset: {e.offset}\n"
+                f"  Problematic line: {error_line_text}{caret_line}\n"
+                f"Full Traceback:\n{traceback.format_exc()}"
+            )
+            return model_pass, explanation
+        except Exception as e: # Catch other potential compilation errors
+            model_pass = False
+            explanation = (
+                f"Compilation Error ({type(e).__name__}): {e}\n"
+                f"Full Traceback:\n{traceback.format_exc()}"
+            )
+            return model_pass, explanation
+
+        # Prepare to capture the output of the test runner
+        log_stream = io.StringIO()
+        # verbosity=2 provides detailed output for each test
+        runner = unittest.TextTestRunner(stream=log_stream, verbosity=2)
+        suite = unittest.TestSuite()
+        
+        # The unit test string is expected to define a class named 'TestCases'
+        test_class_name = "TestCases"
+
+        try:
+            # Execute the compiled code. This will define `task_func` (from LLM code)
+            # and `TestCases` (from unit_test_str) in `execution_globals`.
+            exec(compiled_code, execution_globals)
+
+            # Load tests from the dynamically defined 'TestCases' class
+            if test_class_name in execution_globals:
+                test_class = execution_globals[test_class_name]
+                loader = unittest.TestLoader()
+                suite.addTest(loader.loadTestsFromTestCase(test_class))
+            else:
+                # This would happen if 'TestCases' is not defined in unit_test_str
+                model_pass = False
+                explanation = (
+                    f"Execution Error: The test class '{test_class_name}' was not found "
+                    "after executing the combined code. Please ensure the unit_test string "
+                    f"defines a class named '{test_class_name}'."
+                )
+                return model_pass, explanation
+
+            # Run the tests
+            result = runner.run(suite)
+
+            if result.wasSuccessful():
+                model_pass = True
+                explanation = "All testing points passed."
+            else:
+                model_pass = False
+                test_output = log_stream.getvalue()
+                explanation = f"Some tests failed or errored. Full test output:\n{test_output}"
+
+        except NameError as e:
+            # This typically occurs if 'task_func' is not defined by the LLM's code,
+            # or if the LLM's code (or test code) refers to an undefined name.
+            model_pass = False
+            explanation = (
+                f"Execution Error (NameError): {e}.\n"
+                f"This often means 'task_func' was not defined correctly by the model's code, "
+                f"or an undefined name was used.\n"
+                f"Full Traceback:\n{traceback.format_exc()}"
+            )
+        except Exception as e:
+            # Catch any other unexpected errors during execution or test running
+            model_pass = False
+            explanation = (
+                f"An unexpected error occurred during execution or testing ({type(e).__name__}): {e}\n"
+                f"Full Traceback:\n{traceback.format_exc()}"
+            )
+        finally:
+            log_stream.close()
+
+        return model_pass, explanation     
 
     def _parse_nli_response(response_text):
         """
@@ -146,32 +387,44 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
     # Extract the model's final answer from its response.
     # This assumes the model's response also puts its final answer on the last non-empty line.
     # If item["model_response"] can be None or empty, add checks.
-    model_final_answer_candidate = ""
-    if item.get("model_response") and item["model_response"].strip():
-        model_response_lines = [line.strip() for line in item["model_response"].split("\n") if line.strip()]
-        if model_response_lines:
-            model_final_answer_candidate = model_response_lines[-1]
+    if args.task_name == "grow":
+        model_final_answer_candidate = ""
+        if item.get("model_response") and item["model_response"].strip():
+            model_response_lines = [line.strip() for line in item["model_response"].split("\n") if line.strip()]
+            if model_response_lines:
+                model_final_answer_candidate = model_response_lines[-1]\
     
-    system_prompt_key_equivalence = args.task_name if args.task_name in PROMPT_TEMPLATES_EQUIVALENCE else "default"
-    system_prompt_equivalence = PROMPT_TEMPLATES_EQUIVALENCE[system_prompt_key_equivalence]
-    
-    llm_input_prompt_equivalence = (
-        f"Question:\n{item['question']}\n"
-        f"Response:\n{model_final_answer_candidate}\n" # Use extracted model's final answer line
-        f"Answer:\n{ground_truth_final_answer}\n"
-        f"Equivalence:\n"
-    )
-    chat_response_generator.update_chat_history([
-        ("system", system_prompt_equivalence),
-    ])
-    raw_equivalence_response = chat_response_generator.generate_response(
-        llm_input_prompt_equivalence,
-        temperature=0, top_p=1, n=1, max_tokens=100
-    )[0]
-    
-    final_answer_correct, final_answer_explanation = _parse_llm_equivalence_response(raw_equivalence_response)
-    item["final_answer_correct"] = final_answer_correct
-    item["final_answer_explanation"] = final_answer_explanation
+        system_prompt_key_equivalence = args.task_name if args.task_name in PROMPT_TEMPLATES_EQUIVALENCE else "default"
+        system_prompt_equivalence = PROMPT_TEMPLATES_EQUIVALENCE[system_prompt_key_equivalence]
+        
+        llm_input_prompt_equivalence = (
+            f"Question:\n{item['question']}\n"
+            f"Response:\n{model_final_answer_candidate}\n" # Use extracted model's final answer line
+            f"Answer:\n{ground_truth_final_answer}\n"
+            f"Equivalence:\n"
+        )
+        chat_response_generator.update_chat_history([
+            ("system", system_prompt_equivalence),
+        ])
+        raw_equivalence_response = chat_response_generator.generate_response(
+            llm_input_prompt_equivalence,
+            temperature=0, top_p=1, n=1, max_tokens=100
+        )[0]
+        
+        final_answer_correct, final_answer_explanation = _parse_llm_equivalence_response(raw_equivalence_response)
+        item["final_answer_correct"] = final_answer_correct
+        item["final_answer_explanation"] = final_answer_explanation
+    elif args.task_name == "code":
+        unit_test = item.get("other_metadata", {}).get("test", "")
+        model_final_answer_candidate = ""
+        if item.get("model_response") and item["model_response"].strip():
+            # Extract coding block between ```python and ```
+            match = re.search(r"```python\s*([\s\S]*?)\s*```", item["model_response"])
+            if match:
+                model_final_answer_candidate = match.group(-1)
+        final_answer_correct, final_answer_explanation = _execute_llm_generated_code_and_test(model_final_answer_candidate, unit_test)
+        item["final_answer_correct"] = final_answer_correct
+        item["final_answer_explanation"] = final_answer_explanation
 
     # 2. Evaluate whether each knowledge in required_knowledge is entailment/contradiction/neutral with the model response
     chat_response_generator.update_chat_history([
@@ -181,15 +434,22 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
 
     for knowledge_item in item["required_knowledge"]:
         knowledge_text = knowledge_item["knowledge"]
-        llm_input_prompt_nli = (
-            f"Context:\n{model_full_response_context}\n\n"
-            f"Statement:\n{knowledge_text}\n\n"
-            f"NLI:\n"
-        )
+        if args.task_name == "grow":
+            llm_input_prompt_nli = (
+                f"Context:\n{model_full_response_context}\n\n"
+                f"Statement:\n{knowledge_text}\n\n"
+                f"NLI:\n"
+            )
+        elif args.task_name == "code":
+            llm_input_prompt_nli = (
+                f"Code:\n```python\n{model_final_answer_candidate}\n```\n\n"
+                f"{knowledge_text}"
+                f"NLI:\n"
+            )
         
         raw_nli_response = chat_response_generator.generate_response(
             llm_input_prompt_nli,
-            temperature=0, top_p=1, n=1, max_tokens=100
+            temperature=0, top_p=1, n=1, max_tokens=256
         )[0]
         
         nli_class, nli_explanation = _parse_nli_response(raw_nli_response)
