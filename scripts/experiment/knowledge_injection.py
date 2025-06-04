@@ -1,5 +1,6 @@
 import os
 import sys
+import pandas
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(project_root)
 
@@ -91,6 +92,82 @@ def prepare_input(item, args, knowledge_to_inject_str=""):
         else: # No knowledge injection or no "unknown" knowledge found for this scope
             prepared_system_prompt = system_prompt_without_injection
             prepared_user_prompt = f"User:\n{item['question']}\nAssistant:\n"
+    elif args.task_name == "code":
+        prompt_solution = """```python
+import pandas as pd
+
+def task_func(dealer_sales_data):
+    # Step 1: Create DataFrame & Step 2: Handle Empty Input (if dealer_sales_data is empty)
+    df = pd.DataFrame(dealer_sales_data)
+    
+    if not dealer_sales_data:
+        return []
+
+    # Ensure 'id' and 'num_sold' columns exist, otherwise it's malformed input
+    if 'id' not in df.columns or 'num_sold' not in df.columns:
+        return []
+
+    # Step 3: Find Max Sales
+    max_sold = df['num_sold'].max()
+
+    # Step 4: Identify Top Sellers
+    top_selling_cars = df[df['num_sold'] == max_sold]
+
+    # Step 5: Extract and Sort IDs
+    top_selling_ids = top_selling_cars['id'].tolist()
+    sorted_ids = sorted(top_selling_ids)
+
+    # Step 6: Return Result
+    return sorted_ids
+```"""
+    
+        system_prompt_without_injection = (
+            "You are given a coding question. To answer the question, you should think step by step. "
+            "You should also write self-contained code starting with\n"
+            "```python\n"
+            "import ...\n"
+            "def task_func(...):\n"
+            "\t...\n"
+            "```\n"
+            "[Here is one demonstration]\n\n"
+            "User:\nCompute and return the IDs of the best-selling cars from `dealer_sales_data`, a list of dictionaries, with each composed of an 'id' key (a string identifier) and a 'num_sold' key (an integer). The function should output with:\nids: A list of string ids for the car(s) that sell the best. If multiple car ids achieve the maximum sales, all are returned. The list should be sorted alphabetically for consistent output.\nYou should write self-contained code starting with:\n```python\nimport pandas as pd\ndef task_func(dealer_sales_data):\n```\n\n"
+            "Assistant:\n"
+            "Okay, I'll outline the steps to solve this problem and then provide the Python code using pandas.\n"
+            "Here's the plan:\n"
+            "1.  **Create DataFrame**: Convert the list of car records into a pandas DataFrame as we are required to use the pandas library.\n"
+            "2.  **Handle Empty Input**: If the initial data is empty (resulting in an empty DataFrame), there's no data to process, so we should return an empty list early.\n"
+            "3.  **Find Max Sales**: Find the maximum value in their 'num_sold' column. This gives us the sales figure of the best-selling car(s).\n"
+            "4.  **Identify Top Sellers**: Filter the DataFrame again to get only those cars whose 'num_sold' is equal to the maximum sales figure found in the previous step.\n"
+            "5.  **Extract and Sort IDs**: From these top-selling cars, extract their 'id' values into a list. Then, sort this list of IDs alphabetically.\n"
+            "6.  **Return Result**: The sorted list of IDs is the final answer.\n\n"
+            "Now, let's implement this solution.\n\n"
+        ) + prompt_solution
+        
+        system_prompt_after_injection = (
+            "You are given a coding question. To answer the question, you should think step by step. "
+            "You should also write self-contained code starting with\n"
+            "```python\n"
+            "import ...\n"
+            "def task_func(...):\n"
+            "\t...\n"
+            "```\n"
+            "Users may provide a set of functions and docstrings as facts. If they provide facts that conflict with your knowledge, you should update your "
+            "knowledge and use the facts to answer the question.\n\n"
+            "[Here is one demonstration]\n\n"
+            "User:\nCompute and return the IDs of the best-selling cars from `dealer_sales_data`, a list of dictionaries, with each composed of an 'id' key (a string identifier) and a 'num_sold' key (an integer). The function should output with:\nids: A list of string ids for the car(s) that sell the best. If multiple car ids achieve the maximum sales, all are returned. The list should be sorted alphabetically for consistent output.\nYou should write self-contained code starting with:\n```python\nimport pandas as pd\ndef task_func(dealer_sales_data):\n```\n"
+            "Please update your knowledge with following facts:\n"
+            f"Function: pandas.DataFrame.max()\n\nDocstring: {pandas.DataFrame.max.__doc__.strip()}\n\n"
+            "Assistant:\n"
+            "The user provided the docstring of the max function for pandas DataFrame. I'll update my knowledge with user-provided facts, outline the steps to solve this problem, and then provide the Python code using pandas.\n"
+            "Here's the plan:\n"
+            "1.  **Create DataFrame**: Convert the list of car records into a pandas DataFrame as we are required to use the pandas library.\n"
+            "2.  **Handle Empty Input**: If the initial data is empty (resulting in an empty DataFrame), there's no data to process, so we should return an empty list early.\n"
+            "3.  **Find Max Sales**: Find the maximum value in their 'num_sold' column. We need to use the max function for pandas DataFrame. This gives us the sales figure of the best-selling car(s).\n"
+            "4.  **Identify Top Sellers**: Filter the DataFrame again to get only those cars whose 'num_sold' is equal to the maximum sales figure found in the previous step.\n"
+            "5.  **Extract and Sort IDs**: From these top-selling cars, extract their 'id' values into a list. Then, sort this list of IDs alphabetically.\n"
+            "6.  **Return Result**: The sorted list of IDs is the final answer.\n\n"
+            "Now, let's implement this solution.\n\n"
+        ) + prompt_solution
     else:
         raise NotImplementedError(f"Task {args.task_name} is not implemented.")
 

@@ -250,10 +250,13 @@ def process_item(item, args, chat_response_generator, facts):
     )
     
     user_template = (
-        "You are asked to propose a question whose answer is [ANSWER]. "
+        "You are asked to propose a question whose answer is [ANSWER].\n"
         "Your question should start with \"Given the library (libraries) [LIB], how can we ...?\"\n\n"
-        "You should never reveal the answer in the docstring, and if there is any explicit keyword argument in the answer, you should ensure the question for the answer guarantees the appearance of the provided keyword arguments.\n\n"
-        "You can refer to the following docstring:\n[DOCSTRING]\n\n"
+        "You should never reveal the answer or its specific arguments in your question.\n\n"
+        "The goal is to create a question that leads to the simplest, most basic way to call or instantiate the function/class in [ANSWER], using all default parameter values.\n"
+        "- If [ANSWER] includes specific keyword arguments (e.g., `sklearn.some_func(arg1=value)`), your question MUST be phrased to necessitate those exact keyword arguments.\n"
+        "- If [ANSWER] is a simple call with no keyword arguments (e.g., `sklearn.SomeClass()` or `numpy.some_func()`), your question should ask for the standard or default way to achieve the described action, implying no specific non-default parameters are needed. Do not hint at any optional parameters or their default values.\n\n"
+        "You can refer to the following docstring for context on the function's purpose:\n[DOCSTRING]\n\n"
         "Use one sentence to propose the question."
     )
     
@@ -264,6 +267,12 @@ def process_item(item, args, chat_response_generator, facts):
         knowledge = f"Function: {fact.get('canonical_function', '')}\n\nDocstring: {fact.get('docstring', '')}"
         user_input = user_template.replace("[ANSWER]", answer).replace("[LIB]", fact.get('library', '')).replace("[DOCSTRING]", fact.get('docstring', ''))
         if answer in GLOBAL_QUESTION_CACHE:
+            flag = False
+            for p in probe_questions:
+                if p["answer"] == answer:
+                    flag = True
+            if flag:
+                continue      
             question = GLOBAL_QUESTION_CACHE[answer]
         else:
             chat_response_generator.update_chat_history([
@@ -274,7 +283,7 @@ def process_item(item, args, chat_response_generator, facts):
                 top_p=0.7,
                 temperature=0.7,
                 n=1,
-                max_tokens=100,
+                max_tokens=512,
             )[0]
             question = response.strip()
             GLOBAL_QUESTION_CACHE[answer] = question

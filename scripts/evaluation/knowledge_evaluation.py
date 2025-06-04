@@ -78,6 +78,77 @@ No, the response fails to provide an entity (N/A), while the answer provides the
 If they are equivalent, answer 'Yes' and provide an explanation. Otherwise, answer 'No' and provide an explanation.
 
 Note that if the response does not contain an entity, it should be treated as 'N/A' and not equivalent to the answer.
+""",
+"code": """You are given a ground truth function call from a library, a corresponding docstring for the function call, and the model's response. Each response might also contain a function call from a library. Your task is to use basic Python coding knowledge to evaluate whether the model's response most probably contains a function call that is equivalent to the ground truth function call.
+
+If they are equivalent, answer 'Yes' and provide an explanation. Otherwise, answer 'No' and provide an explanation.
+
+Note that if the response does not contain a function call, it should be treated as 'N/A' and not equivalent to the ground truth function call.
+
+Examples:
+
+Ground truth function call:
+pandas.DataFrame(data)
+Docstring:
+Two-dimensional, size-mutable, potentially heterogeneous tabular data.
+
+Data structure also contains labeled axes (rows and columns).
+Arithmetic operations align on both row and column labels. Can be
+thought of as a dict-like container for Series objects. The primary
+pandas data structure.
+
+Parameters
+----------
+data : ndarray (structured or homogeneous), Iterable, dict, or DataFrame
+    Dict can contain Series, arrays, constants, dataclass or list-like objects. If
+    data is a dict, column order follows insertion-order. If a dict contains Series
+    which have an index defined, it is aligned by its index. This alignment also
+    occurs if data is a Series or a DataFrame itself. Alignment is done on
+    Series/DataFrame inputs.
+
+    If data is a list of dicts, column order follows insertion-order.
+
+index : Index or array-like
+    Index to use for resulting frame. Will default to RangeIndex if
+    no indexing information part of input data and no index provided.
+columns : Index or array-like
+    Column labels to use for resulting frame when data does not have them,
+    defaulting to RangeIndex(0, 1, 2, ..., n). If data contains column labels,
+    will perform column selection instead.
+dtype : dtype, default None
+    Data type to force. Only a single dtype is allowed. If None, infer.
+copy : bool or None, default None
+    Copy data from inputs.
+    For dict data, the default of None behaves like ``copy=True``.  For DataFrame
+    or 2d ndarray input, the default of None behaves like ``copy=False``.
+    If data is a dict containing one or more Series (possibly of different dtypes),
+    ``copy=False`` will ensure that these inputs are not copied.
+...
+Response:
+```python
+pandas.DataFrame(arr)
+Equivalence:
+Yes, the response contains the same function call as the ground truth function call. The function call `pandas.DataFrame(arr)` is equivalent to the ground truth function call, which creates a DataFrame from the provided data.
+
+Ground truth function call:
+pandas.DataFrame(data)
+Docstring:
+... (the same docstring as above)
+Response:
+```python
+pandas.DataFrame(arr, dtype=None)
+Equivalence:
+Yes, the response contains the same function call as the ground truth function call. The function call `pandas.DataFrame(arr, dtype=None)` is equivalent to the ground truth function call, which creates a DataFrame from the provided data. The `dtype` parameter is optional and defaults to None, so it does not change the equivalence.
+
+Ground truth function call:
+pandas.DataFrame(data)
+Docstring:
+... (the same docstring as above)
+Response:
+```python
+pandas.DataFrame(data, dtype="float")
+Equivalence:
+No, the response contains a different function call than the ground truth function call. The function call `pandas.DataFrame(data, dtype="float")` specifies a dtype of "float", which is not equivalent to the ground truth function call that does not specify a dtype. The ground truth function call creates a DataFrame from the provided data without any specific dtype.
 """
 }
 

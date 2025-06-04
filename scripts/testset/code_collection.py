@@ -53,10 +53,9 @@ if __name__ == "__main__":
         global_cache,
         force_rebuild_cache_for_all=True
     )
-    
-    args.data_size = len(bigcodebench)
-    with tqdm(total=args.data_size, desc="Processing codes", unit="code") as pbar:
-        for i in range(args.data_size):
+
+    with tqdm(total=len(bigcodebench), desc="Processing codes", unit="code") as pbar:
+        for i in range(len(bigcodebench)):
             while True:
                 try:
                     item = bigcodebench[i]
@@ -64,9 +63,9 @@ if __name__ == "__main__":
                     # Process each item
                     processed_item, usage = process_item(item, args, chat_response_generator, facts)
                     # Update the total token counts
-                    prompt_tokens += usage[args.model_name]["prompt_tokens"]
-                    completion_tokens += usage[args.model_name]["completion_tokens"]
-                    total_tokens += usage[args.model_name]["total_tokens"]
+                    prompt_tokens = usage[args.model_name]["prompt_tokens"]
+                    completion_tokens = usage[args.model_name]["completion_tokens"]
+                    total_tokens = usage[args.model_name]["total_tokens"]
                     # Append the processed item to the list
                     processed_data.append(processed_item)
                     # Update the progress bar with the number of tokens used
