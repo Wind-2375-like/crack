@@ -14,6 +14,7 @@ def translate_model_name(model_name: str) -> str:
         "llama-3.2-1b-turbo": "meta-llama/Llama-3.2-1B-Instruct-Turbo",
         "llama-3.2-3b": "meta-llama/Llama-3.2-3B-Instruct",
         "llama-3.2-3b-turbo": "meta-llama/Llama-3.2-3B-Instruct-Turbo",
+        "llama-3.2-11b": "meta-llama/Llama-3.2-11B-Vision-Instruct",
         "llama-3.2-90b": "meta-llama/Llama-3.2-90B-Vision-Instruct",
         "llama-3.2-90b-turbo": "meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
         "qwen-2.5-1.5b": 'Qwen/Qwen2.5-1.5B-Instruct',

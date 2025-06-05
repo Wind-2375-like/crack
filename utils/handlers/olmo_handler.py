@@ -22,10 +22,20 @@ class OlmoHandler(BaseModelHandler):
 
     def generate_response(self, formatted_input, **kwargs):
         model_inputs = self.tokenizer([formatted_input], return_tensors="pt").to(self.device)
+        
+        temperature = kwargs.get("temperature", 0)
+        top_p = kwargs.get("top_p", 1)
+        n = kwargs.get("n", 1)
+        max_tokens = kwargs.get("max_tokens", 512)
+        
         with torch.no_grad():
             generated_ids = self.model.generate(
-                model_inputs.input_ids,
-                **kwargs
+                **model_inputs,
+                max_new_tokens=max_tokens,
+                do_sample=True,
+                temperature=temperature,
+                top_p=top_p,
+                num_return_sequences=n,
             )
             # Remove the prompt from the generated text
             generated_ids = [

@@ -19,6 +19,7 @@ class ChatResponseGenerator:
             "gpt-4": "openai",
             "gpt-4o": "openai",
             "gpt-4o-mini": "openai",
+            "gpt-4.1-mini": "openai",
             "meta-llama/Llama-3.2-3B-Instruct-Turbo": "together",
             "meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo": "together",
             "meta-llama/Meta-Llama-3-8B-Instruct-Turbo": "together",

@@ -24,7 +24,7 @@ def parse_args():
     parser.add_argument('--depth', type=int, default=4, help="Depth of the chain")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
     parser.add_argument('--model_name', type=str, default="llama-3.2-3b", help="Model name for the API")
-    parser.add_argument('--evaluate_model_name', type=str, default="gpt-4o-mini", help="Model name for the evaluation")
+    parser.add_argument('--evaluate_model_name', type=str, default="gpt-4.1-mini", help="Model name for the evaluation")
     parser.add_argument('--task_name', type=str, default="grow", help="Task name")
     return parser.parse_args()
 
@@ -147,11 +147,11 @@ Docstring: ... (the same docstring as above)
 
 Response:
 ```python
-pandas.DataFrame(\{"id": [0, 1, 2, 3, 4], "val": [100, 200, -2, 34, 45.2]\}, dtype=None)
+pandas.DataFrame({"id": [0, 1, 2, 3, 4], "val": [100, 200, -2, 34, 45.2]}, dtype=None)
 ```
 
 Correct:
-Yes, the response contains the same function call as the ground truth function call. The function call `pandas.DataFrame(\{"id": [0, 1, 2, 3, 4], "val": [100, 200, -2, 34, 45.2]\}, dtype=None)` is equivalent to the ground truth function call, which creates a DataFrame from the provided data. The `dtype` parameter is optional and defaults to None, so it does not change the equivalence.
+Yes, the response contains the same function call as the ground truth function call. The function call `pandas.DataFrame({"id": [0, 1, 2, 3, 4], "val": [100, 200, -2, 34, 45.2]}, dtype=None)` is equivalent to the ground truth function call, which creates a DataFrame from the provided data. The `dtype` parameter is optional and defaults to None, so it does not change the equivalence.
 
 --- Example 3 ---
 
@@ -231,7 +231,7 @@ def evaluate_probe_item(item, args, chat_response_generator):
         for i in item["probe_answers"]:
             match = re.search(r"```python\s*([\s\S]*?)\s*```", i)
             if match:
-                probe_answers_from_item.append(match.group(-1).strip())
+                probe_answers_from_item.append(match.group(1).strip())
             else:
                 probe_answers_from_item.append("N/A")
         
