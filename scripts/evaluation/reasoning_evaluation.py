@@ -421,7 +421,7 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
             # Extract coding block between ```python and ```
             match = re.search(r"```python\s*([\s\S]*?)\s*```", item["model_response"])
             if match:
-                model_final_answer_candidate = match.group(-1).strip()
+                model_final_answer_candidate = match.group(1).strip()
         final_answer_correct, final_answer_explanation = _execute_llm_generated_code_and_test(model_final_answer_candidate, unit_test)
         item["final_answer_correct"] = final_answer_correct
         item["final_answer_explanation"] = final_answer_explanation
