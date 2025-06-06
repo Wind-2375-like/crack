@@ -1,6 +1,5 @@
 .vscode
 api_key/config.json
-*.pkl
 *.json
 
 # Byte-compiled / optimized / DLL files
