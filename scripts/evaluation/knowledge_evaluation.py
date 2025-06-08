@@ -233,7 +233,7 @@ def evaluate_probe_item(item, args, chat_response_generator):
             if match:
                 probe_answers_from_item.append(match.group(1).strip())
             else:
-                probe_answers_from_item.append("N/A")
+                probe_answers_from_item.append(i.strip())
         
     ground_truth_answer_text = item["answer"]
     question_text = item["question"]

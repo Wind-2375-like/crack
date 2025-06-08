@@ -60,7 +60,7 @@ python scripts/evaluation/knowledge_evaluation.py \
     --data_size 100 \                           # Number of collected examples (different from the number of examples to evaluate)
     --api_config_file ./api_key/config.json \   # Path to the API configuration file
     --model_name llama-3.2-3b \                 # Tested model
-    --evaluate_model_name gpt-4o-mini \         # Model used for evaluation
+    --evaluate_model_name gpt-4.1-mini \         # Model used for evaluation
     --task_name grow \                          # Can be grow (Graph Reasoning On Wikidata) or cue (Code-generation Using External APIs)
 ```
 
@@ -89,7 +89,7 @@ python scripts/evaluation/reasoning_evaluation.py \
     --data_size 100 \                           # Number of examples to evaluate
     --api_config_file ./api_key/config.json \   # Path to the API configuration file
     --model_name llama-3.2-3b \                 # Tested model
-    --evaluate_model_name gpt-4o-mini \         # Model used for evaluation
+    --evaluate_model_name gpt-4.1-mini \         # Model used for evaluation
     --task_name grow \                          # Can be grow (Graph Reasoning On Wikidata) or cue (Code-generation Using External APIs)
     --inject_knowledge \                        # Whether to inject knowledge
     --knowledge_aggregation_method 1 \          # Scope for aggregating 'unknown' knowledge. Must be >= 1. 1: item-specific. N (e.g., 10, 100): group of N items.

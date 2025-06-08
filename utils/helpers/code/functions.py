@@ -1,9 +1,17 @@
 import ast
 import importlib
 import inspect
-import json
 import re
 import warnings
+import platform
+import resource
+import tempfile
+import traceback
+import io
+import unittest
+import os
+import subprocess
+from contextlib import contextmanager
 
 
 # --- Global Cache ---
@@ -314,3 +322,106 @@ def process_item(item, args, chat_response_generator, facts):
     usage = chat_response_generator.get_usage()
     
     return processed_item, usage
+
+# Define a timeout for the execution of the untrusted code
+EXECUTION_TIMEOUT = 240  # Increased timeout as requested
+
+@contextmanager
+def _capture_subprocess_output():
+    """
+    A context manager to capture stdout/stderr from subprocesses that
+    do not have a specified output stream. This version is more careful
+    not to interfere with intended behavior.
+    """
+    original_popen = subprocess.Popen
+
+    def patched_popen(*args, **kwargs):
+        # --- SOLUTION FOR FAILURE TYPE 1 & 2 ---
+        # Only redirect if stdout/stderr are not already set by the caller.
+        # This respects calls like `subprocess.call(..., stdout=f)`.
+        if 'stdout' not in kwargs:
+            kwargs['stdout'] = subprocess.PIPE
+        if 'stderr' not in kwargs:
+            kwargs['stderr'] = subprocess.PIPE
+        
+        # --- SOLUTION FOR FAILURE TYPE 2 ---
+        # Do NOT force text=True, as some libraries (e.g., ctypes, platform)
+        # expect to receive raw bytes from the stream.
+        
+        return original_popen(*args, **kwargs)
+
+    # We still patch os.popen as it's a special case (legacy, text-based)
+    original_os_popen = os.popen
+    def patched_os_popen(cmd, mode='r', buffering=-1):
+        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if mode == 'r':
+            return proc.stdout
+        elif mode == 'w':
+            return proc.stdin
+        return proc.stdout
+
+    try:
+        subprocess.Popen = patched_popen
+        os.popen = patched_os_popen
+        yield
+    finally:
+        subprocess.Popen = original_popen
+        os.popen = original_os_popen
+
+def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
+    """
+    A worker function that executes in a separate, sandboxed process.
+    It runs the unit tests against the model's code and reports results.
+    """
+    # Set memory limits (e.g., 10 GB) as requested
+    if platform.system() != "Windows":
+        mem_limit = 10 * 1024 * 1024 * 1024
+        try:
+            resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
+            resource.setrlimit(resource.RLIMIT_DATA, (mem_limit, mem_limit))
+        except Exception as e:
+            result_dict['model_pass'] = False
+            result_dict['explanation'] = f"Failed to set resource limits: {e}"
+            return
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        try:
+            os.chdir(temp_dir)
+            full_code = model_code + "\n\n" + test_code
+            execution_globals = {"__name__": "__main__"}
+
+            try:
+                compiled_code = compile(full_code, '<string>', 'exec')
+            except Exception as e:
+                result_dict['model_pass'] = False
+                result_dict['explanation'] = f"Compilation Error:\n{traceback.format_exc()}"
+                return
+
+            log_stream = io.StringIO()
+            
+            with unittest.mock.patch('sys.stdout', log_stream), \
+                 unittest.mock.patch('sys.stderr', log_stream), \
+                 _capture_subprocess_output():
+                
+                exec(compiled_code, execution_globals)
+                loader = unittest.TestLoader()
+                suite = loader.loadTestsFromTestCase(execution_globals['TestCases'])
+                runner = unittest.TextTestRunner(stream=log_stream, verbosity=2)
+                test_result = runner.run(suite)
+
+            if test_result.wasSuccessful():
+                result_dict['model_pass'] = True
+                result_dict['explanation'] = "All testing points passed."
+            else:
+                test_output = log_stream.getvalue()
+                result_dict['model_pass'] = False
+                result_dict['explanation'] = f"Some tests failed or errored. Full test output:\n{test_output}"
+
+        except Exception as e:
+            error_trace = traceback.format_exc()
+            captured_output = log_stream.getvalue() if 'log_stream' in locals() else ""
+            result_dict['model_pass'] = False
+            result_dict['explanation'] = (
+                f"An unexpected error occurred during execution:\n{error_trace}\n\n"
+                f"Captured Output:\n{captured_output}"
+            )

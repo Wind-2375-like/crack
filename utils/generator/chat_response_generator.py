@@ -16,9 +16,6 @@ class ChatResponseGenerator:
         self.model_name = model_name
         self.update_chat_history(chat_history)
         self.model_name_to_openai_or_together = {
-            "gpt-4": "openai",
-            "gpt-4o": "openai",
-            "gpt-4o-mini": "openai",
             "gpt-4.1-mini": "openai",
             "meta-llama/Llama-3.2-3B-Instruct-Turbo": "together",
             "meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo": "together",
@@ -29,7 +26,7 @@ class ChatResponseGenerator:
             "mistralai/Mixtral-8x7B-Instruct-v0.1": "together",
         }
         if not (model_name in self.model_name_to_openai_or_together or local):
-            if "gpt-4o-mini" in model_name: # fine-tuned models
+            if "gpt-4.1-mini" in model_name: # fine-tuned models
                 self.client_type = "openai"
             else:
                 # print(f"Model {model_name} is not supported in API. Trying to use local model.")

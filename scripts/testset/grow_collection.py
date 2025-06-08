@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument('--data_size', type=int, default=100, help="Number of triples to process")
     parser.add_argument('--depth', type=int, default=4, help="Depth of the chain")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
-    parser.add_argument('--model_name', type=str, default="gpt-4o-mini", help="Model name for the API")
+    parser.add_argument('--model_name', type=str, default="gpt-4.1-mini", help="Model name for the API")
     return parser.parse_args()
 
 if __name__ == "__main__":
