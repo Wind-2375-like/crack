@@ -226,7 +226,22 @@ def extract_required_unknown_knowledge(items_list, task_name):
         return " ".join(sorted(list(unknown_knowledge_set)))
     else:
         return "\n\n".join(sorted(list(unknown_knowledge_set)))
-
+    
+def extract_all_required_knowledge(items_list, task_name):
+    """
+    Helper to extract unique knowledge strings from a list of items,
+    where 'knowledgable' is False.
+    """
+    all_knowledge_set = set()
+    for an_item in items_list:
+        for k_entry in an_item.get('required_knowledge', []):
+            # Check if 'knowledgable' is False and 'knowledge' string exists and is not empty
+            if k_entry.get('knowledge'):
+                all_knowledge_set.add(k_entry['knowledge'])
+    if task_name == "grow":
+        return " ".join(sorted(list(all_knowledge_set)))
+    else:
+        return "\n\n".join(sorted(list(all_knowledge_set)))
 
 def update_pbar(processed_item, usage, processed_data_list, token_counts_dict, pbar_instance, model_name_str): # Renamed from _process_and_update_results
     """Helper to update token counts, append data, and refresh progress bar."""
@@ -285,7 +300,10 @@ if __name__ == "__main__":
                 
                 # Items from which knowledge is extracted for the current conceptual group
                 items_for_knowledge_extraction = all_items_list[group_start_idx:group_end_idx]
-                current_knowledge_to_inject = extract_required_unknown_knowledge(items_for_knowledge_extraction, args.task_name)
+                if args.method != "all":
+                    current_knowledge_to_inject = extract_required_unknown_knowledge(items_for_knowledge_extraction, args.task_name)
+                else:
+                    current_knowledge_to_inject = extract_all_required_knowledge(items_for_knowledge_extraction, args.task_name)
                 
                 # Process each item within this conceptual group using the extracted knowledge
                 # The items_for_knowledge_extraction list itself contains the items to process for this group
