@@ -4,17 +4,14 @@ import sys
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(project_root)
 
-import io
 import json
 import pickle
 import argparse
-import unittest
-import traceback
+import multiprocessing
 from tqdm import tqdm
 from utils.generator.chat_response_generator import ChatResponseGenerator
 from scripts.evaluation.knowledge_evaluation import PROMPT_TEMPLATES as PROMPT_TEMPLATES_EQUIVALENCE
-from utils.helpers import translate_model_name
-from collections import Counter
+from utils.helpers.code import unsafe_execute_worker, EXECUTION_TIMEOUT
 
 
 PROMPT_TEMPLATES_NLI = {
@@ -72,11 +69,20 @@ Answer "Entailment", "Contradiction", or "Neutral" and provide a brief explanati
 
 Note that if the Context mentions some knowledge is "unknown", it should be treated as "N/A" and contradictory to the Statement.
 """,
-    "code": """You are an expert in natural language inference and coding. You will be given a "Context" (the model's reasoning response) and a "Statement" (a piece of knowledge). Your task is to determine if the Context finally entails, contradicts, or is neutral with respect to the Statement.
+    "code": """You are an expert in Python programming and natural language inference. You will be given a 'Code' snippet, a 'Function', and a 'Docstring'. Your task is to determine if the Code's usage of the function **Entails**, **Contradicts**, or is **Neutral** with respect to the provided documentation.
 
-Answer "Entailment", "Contradiction", or "Neutral" and provide a brief explanation of your reasoning.
+**Reasoning Framework:**
 
-Note that if the Context mentions some knowledge is "unknown", it should be treated as "N/A" and contradictory to the Statement.
+1.  **Check for Usage:** First, determine if the `Code` calls the specified function. If it does not, the answer is **Neutral**.
+
+2.  **Validate the Call:** If the function is called, analyze the arguments used in the `Code` against the `Function Signature`.
+    * **Entailment:** The usage is valid. This means:
+        * All required arguments are provided.
+        * Any keyword arguments used are valid (i.e., they exist in the function signature).
+        * **Crucially, omitting optional arguments (e.g., those with default values like `r=None`) is a valid use case.**
+    * **Contradiction:** The usage is invalid. This means:
+        * A required argument is missing.
+        * An incorrect or non-existent keyword argument is used (e.g., `datatype=` when it should be `dtype=`).
 
 --- Example 1 ---
 
@@ -205,7 +211,7 @@ def parse_args():
     parser.add_argument('--depth', type=int, default=4, help="Depth of the chain")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
     parser.add_argument('--model_name', type=str, default="llama-3.2-3b", help="Model name for the API")
-    parser.add_argument('--evaluate_model_name', type=str, default="gpt-4o-mini", help="Model name for the evaluation")
+    parser.add_argument('--evaluate_model_name', type=str, default="gpt-4.1-mini", help="Model name for the evaluation")
     parser.add_argument('--task_name', type=str, default="grow", help="Task name")
     parser.add_argument('--inject_knowledge', action='store_true', help="Whether to inject knowledge into the input")
     parser.add_argument('--knowledge_aggregation_scope', type=int, default=1, help="Scope for aggregating 'unknown' knowledge. Must be >= 1. 1: item-specific. N (e.g., 10, 100): group of N items.")
@@ -251,7 +257,8 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
     
     def _execute_llm_generated_code_and_test(model_final_answer_candidate: str, unit_test_str: str):
         """
-        Execute the LLM's generated code against a set of unit tests.
+        Execute the LLM's generated code against a set of unit tests in a
+        safe, isolated, and time-limited process.
 
         Args:
             model_final_answer_candidate: A string containing the Python code
@@ -264,107 +271,37 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
             model_pass is True if all tests pass, False otherwise.
             explanation provides details of the test run or errors.
         """
-        if model_final_answer_candidate is None:
-            model_final_answer_candidate = "" # Ensure it's a string
+        if model_final_answer_candidate == "N/A":
+            return False, "The model failed to provide a valid code block."
 
-        # Combine the LLM's code (defining task_func) with the unit tests
-        # task_func should be defined before TestCases uses it.
-        full_code = model_final_answer_candidate + "\n\n" + unit_test_str
-
-        # Prepare a global environment for the execution.
-        # Setting __name__ to __main__ can be important if the script has checks like
-        # if __name__ == "__main__":, though not typical for just function and class defs.
-        execution_globals = {"__name__": "__main__"}
-
-        try:
-            # First, try to compile the combined code to catch syntax errors early.
-            compiled_code = compile(full_code, '<string>', 'exec')
-        except SyntaxError as e:
-            model_pass = False
-            # Format a detailed syntax error message
-            error_line_text = e.text.rstrip() if e.text else "N/A"
-            caret_line = ""
-            if e.text and e.offset is not None:
-                caret_line = "\n" + " " * (e.offset - 1) + "^" if e.offset > 0 else "\n^"
+        # Use a manager to create a shared dictionary for inter-process communication
+        with multiprocessing.Manager() as manager:
+            result_dict = manager.dict()
             
-            explanation = (
-                f"Compilation Error (SyntaxError):\n"
-                f"  Message: {e.msg}\n"
-                f"  Line number: {e.lineno}\n"
-                f"  Offset: {e.offset}\n"
-                f"  Problematic line: {error_line_text}{caret_line}\n"
-                f"Full Traceback:\n{traceback.format_exc()}"
+            # Create the child process to run the untrusted code safely
+            process = multiprocessing.Process(
+                target=unsafe_execute_worker,
+                args=(model_final_answer_candidate, unit_test_str, result_dict)
             )
-            return model_pass, explanation
-        except Exception as e: # Catch other potential compilation errors
-            model_pass = False
-            explanation = (
-                f"Compilation Error ({type(e).__name__}): {e}\n"
-                f"Full Traceback:\n{traceback.format_exc()}"
-            )
-            return model_pass, explanation
+            
+            process.start()
+            process.join(timeout=EXECUTION_TIMEOUT)
 
-        # Prepare to capture the output of the test runner
-        log_stream = io.StringIO()
-        # verbosity=2 provides detailed output for each test
-        runner = unittest.TextTestRunner(stream=log_stream, verbosity=2)
-        suite = unittest.TestSuite()
-        
-        # The unit test string is expected to define a class named 'TestCases'
-        test_class_name = "TestCases"
+            # Check if the process is still running after the timeout
+            if process.is_alive():
+                process.terminate()  # Forcefully stop the process
+                process.join()
+                return False, f"Execution timed out after {EXECUTION_TIMEOUT} seconds."
+            
+            # Check if the process exited with an error code
+            if process.exitcode != 0:
+                # Check if the worker populated the result dict before crashing
+                if 'explanation' in result_dict:
+                    return result_dict.get('model_pass', False), result_dict['explanation']
+                return False, f"Execution process crashed with exit code {process.exitcode}."
 
-        try:
-            # Execute the compiled code. This will define `task_func` (from LLM code)
-            # and `TestCases` (from unit_test_str) in `execution_globals`.
-            exec(compiled_code, execution_globals)
-
-            # Load tests from the dynamically defined 'TestCases' class
-            if test_class_name in execution_globals:
-                test_class = execution_globals[test_class_name]
-                loader = unittest.TestLoader()
-                suite.addTest(loader.loadTestsFromTestCase(test_class))
-            else:
-                # This would happen if 'TestCases' is not defined in unit_test_str
-                model_pass = False
-                explanation = (
-                    f"Execution Error: The test class '{test_class_name}' was not found "
-                    "after executing the combined code. Please ensure the unit_test string "
-                    f"defines a class named '{test_class_name}'."
-                )
-                return model_pass, explanation
-
-            # Run the tests
-            result = runner.run(suite)
-
-            if result.wasSuccessful():
-                model_pass = True
-                explanation = "All testing points passed."
-            else:
-                model_pass = False
-                test_output = log_stream.getvalue()
-                explanation = f"Some tests failed or errored. Full test output:\n{test_output}"
-
-        except NameError as e:
-            # This typically occurs if 'task_func' is not defined by the LLM's code,
-            # or if the LLM's code (or test code) refers to an undefined name.
-            model_pass = False
-            explanation = (
-                f"Execution Error (NameError): {e}.\n"
-                f"This often means 'task_func' was not defined correctly by the model's code, "
-                f"or an undefined name was used.\n"
-                f"Full Traceback:\n{traceback.format_exc()}"
-            )
-        except Exception as e:
-            # Catch any other unexpected errors during execution or test running
-            model_pass = False
-            explanation = (
-                f"An unexpected error occurred during execution or testing ({type(e).__name__}): {e}\n"
-                f"Full Traceback:\n{traceback.format_exc()}"
-            )
-        finally:
-            log_stream.close()
-
-        return model_pass, explanation     
+            # Return the results captured by the worker process
+            return result_dict.get('model_pass', False), result_dict.get('explanation', "Unknown error: Result dictionary was not populated.")     
 
     def _parse_nli_response(response_text):
         """
@@ -487,6 +424,9 @@ if __name__ == "__main__":
     with open(input_file_path, 'rb') as f:
         eval_dataset = pickle.load(f)
         
+    with open(f'data/{args.task_name}/test_{args.data_size}_depth_{args.depth}.pkl', "rb") as f:
+        raw_dataset = pickle.load(f)
+        
     # Process all chains
     prompt_tokens = 0
     completion_tokens = 0
@@ -497,6 +437,7 @@ if __name__ == "__main__":
     # Use tqdm to show progress
     with tqdm(total=len(eval_dataset), desc="Processing chains for evaluation") as pbar:
         for item_idx, item in enumerate(eval_dataset):
+            item["other_metadata"] = raw_dataset[item_idx].get("other_metadata", {})
             # Process each chain
             processed_item, usage = evaluate_reasoning_item(item, args, chat_response_generator)
             # Update the total token counts

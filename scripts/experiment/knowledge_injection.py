@@ -168,6 +168,12 @@ def task_func(dealer_sales_data):
             "6.  **Return Result**: The sorted list of IDs is the final answer.\n\n"
             "Now, let's implement this solution.\n\n"
         ) + prompt_solution
+        if args.inject_knowledge and knowledge_to_inject_str: # Inject only if flag is true AND there's knowledge
+            prepared_system_prompt = system_prompt_after_injection
+            prepared_user_prompt = f"User:\n{item['question']}\nPlease update your knowledge with following facts:\n{knowledge_to_inject_str}\nAssistant:\n"
+        else: # No knowledge injection or no "unknown" knowledge found for this scope
+            prepared_system_prompt = system_prompt_without_injection
+            prepared_user_prompt = f"User:\n{item['question']}\nAssistant:\n"
     else:
         raise NotImplementedError(f"Task {args.task_name} is not implemented.")
 
@@ -205,7 +211,7 @@ def experiment(item, args, chat_response_generator, knowledge_to_inject_str=""):
 
     return item, chat_response_generator.get_usage()
 
-def extract_required_unknown_knowledge(items_list):
+def extract_required_unknown_knowledge(items_list, task_name):
     """
     Helper to extract unique knowledge strings from a list of items,
     where 'knowledgable' is False.
@@ -216,7 +222,10 @@ def extract_required_unknown_knowledge(items_list):
             # Check if 'knowledgable' is False and 'knowledge' string exists and is not empty
             if not k_entry.get('knowledgable', True) and k_entry.get('knowledge'):
                 unknown_knowledge_set.add(k_entry['knowledge'])
-    return " ".join(sorted(list(unknown_knowledge_set)))
+    if task_name == "grow":
+        return " ".join(sorted(list(unknown_knowledge_set)))
+    else:
+        return "\n\n".join(sorted(list(unknown_knowledge_set)))
 
 
 def update_pbar(processed_item, usage, processed_data_list, token_counts_dict, pbar_instance, model_name_str): # Renamed from _process_and_update_results
@@ -276,7 +285,7 @@ if __name__ == "__main__":
                 
                 # Items from which knowledge is extracted for the current conceptual group
                 items_for_knowledge_extraction = all_items_list[group_start_idx:group_end_idx]
-                current_knowledge_to_inject = extract_required_unknown_knowledge(items_for_knowledge_extraction)
+                current_knowledge_to_inject = extract_required_unknown_knowledge(items_for_knowledge_extraction, args.task_name)
                 
                 # Process each item within this conceptual group using the extracted knowledge
                 # The items_for_knowledge_extraction list itself contains the items to process for this group
