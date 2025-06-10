@@ -69,7 +69,7 @@ Answer "Entailment", "Contradiction", or "Neutral" and provide a brief explanati
 
 Note that if the Context mentions some knowledge is "unknown", it should be treated as "N/A" and contradictory to the Statement.
 """,
-    "code": """You are an expert in Python programming and natural language inference. You will be given a 'Code' snippet, a 'Function', and a 'Docstring'. Your task is to determine if the Code's usage of the function **Entails**, **Contradicts**, or is **Neutral** with respect to the provided documentation.
+    "code": """You are an expert in Python programming and natural language inference. You will be given a 'Code' snippet and a 'Function'. Your task is to determine if the Code's usage of the function **Entails**, **Contradicts**, or is **Neutral** with respect to the correct usage of the function.
 
 **Reasoning Framework:**
 
@@ -92,7 +92,7 @@ import pandas as pd
 
 def task_func(dealer_sales_data):
     # Step 1: Create DataFrame & Step 2: Handle Empty Input (if dealer_sales_data is empty)
-    df = pd.DataFrame(dealer_sales_data)
+    df = pd.DataFrame(dealer_sales_data, dtype=None)
     
     if not dealer_sales_data:
         return []
@@ -117,18 +117,8 @@ def task_func(dealer_sales_data):
 
 Function: pandas.DataFrame(data)
 
-Docstring: Two-dimensional, size-mutable, potentially heterogeneous tabular data...
-
-Parameters
-----------
-data : ndarray (structured or homogeneous), ...
-...
-dtype : dtype, default None
-    Data type to force. Only a single dtype is allowed. If None, infer.
-...
-
 NLI:
-Entailment. The code contains the function call `pd.DataFrame(dealer_sales_data)`. The usage `pd.DataFrame(dealer_sales_data)` is entailed in the docstring. Only one positional parameter and no optional parameters.
+Entailment. The code contains the function call `pd.DataFrame(dealer_sales_data)`. The usage `pd.DataFrame(dealer_sales_data)` is entailed in the provided function. Only one positional parameter and the optional parameter `dtype` is set to `None`, which is by default.
 
 --- Example 2 ---
 
@@ -163,10 +153,8 @@ def task_func(dealer_sales_data):
 
 Function: pandas.DataFrame(data)
 
-Docstring: ... (the same as above)
-
 NLI:
-Contradiction. The code contains a related function call `pd.DataFrame(dealer_sales_data, datatype="float")`, but it uses a different keyword argument `datatype` which does not exist in the docstring. The usage of the function contradicts with the docstring.
+Contradiction. The code contains a related function call `pd.DataFrame(dealer_sales_data, datatype="float")`, but it uses a different keyword argument `datatype` which does not exist. The usage of the function contradicts with the correct usage of of the provided function.
 
 --- Example 3 ---
 
@@ -175,10 +163,8 @@ Code:
 
 Function: sklearn.linear_model.LinearRegression()
 
-Docstring: Ordinary least squares Linear Regression...
-
 NLI:
-Neutral. The code does not contain any function call related to the docstring.
+Neutral. The code does not contain any function call related to the provided function.
 
 --- Example 4 ---
 
@@ -187,10 +173,8 @@ N/A
 
 Function: ... (any function)
 
-Docstring: ... (any docstring)
-
 NLI:
-Neutral. The code does not contain any function call related to the docstring.
+Neutral. The code does not contain any function call related to the provided function.
 """,
     "default": """You are an expert in natural language inference and commonsense reasoning. You will be given a "Context" (the model's reasoning response) and a "Statement" (a piece of knowledge). Your task is to determine if the Context finally entails, contradicts, or is neutral with respect to the Statement.
     
@@ -371,6 +355,7 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
 
     for knowledge_item in item["required_knowledge"]:
         knowledge_text = knowledge_item["knowledge"]
+        answer_text = knowledge_item["answer"]
         if args.task_name == "grow":
             llm_input_prompt_nli = (
                 f"Context:\n{model_full_response_context}\n\n"
@@ -380,7 +365,7 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
         elif args.task_name == "code":
             llm_input_prompt_nli = (
                 f"Code:\n```python\n{model_final_answer_candidate}\n```\n\n"
-                f"{knowledge_text}\n\n"
+                f"Function:\n{answer_text}\n\n"
                 f"NLI:\n"
             )
         
