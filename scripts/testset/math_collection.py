@@ -10,7 +10,7 @@ from datasets import load_dataset
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(project_root)
 from utils.generator.chat_response_generator import ChatResponseGenerator
-from utils.helpers.code import process_item, build_cache_and_generate_knowledge
+from utils.helpers.math import process_item
 
 def parse_args():
     """
@@ -18,9 +18,9 @@ def parse_args():
     Returns:
         Namespace: Parsed arguments.
     """
-    parser = argparse.ArgumentParser(description="Process a chain of triples.")
-    parser.add_argument('--data_size', type=int, default=100, help="Number of triples to process")
-    parser.add_argument('--depth', type=int, default=4, help="Depth of the chain")
+    parser = argparse.ArgumentParser(description="Process math questions.")
+    parser.add_argument('--data_size', type=int, default=100, help="Number of math questions to process")
+    parser.add_argument('--depth', type=int, default=4, help="Useless parameter")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
     parser.add_argument('--model_name', type=str, default="gpt-4.1-mini", help="Model name for the API")
     return parser.parse_args()
@@ -46,24 +46,19 @@ if __name__ == "__main__":
         local=False
     )
     
-    bigcodebench = load_dataset("bigcode/bigcodebench", split="v0.1.4")
-    global_cache = {}
-    library_call_knowledge = build_cache_and_generate_knowledge(
-        bigcodebench,
-        global_cache,
-        force_rebuild_cache_for_all=True
-    )
+    prmbench = load_dataset("hitsmy/PRMBench_Preview", split="train")
 
-    with tqdm(total=args.data_size, desc="Processing codes", unit="code") as pbar:
+    with tqdm(total=args.data_size, desc="Processing math", unit="code") as pbar:
         i = 0
         count = 0
         while count <= args.data_size:
             try:
-                item = bigcodebench[i]
+                item = prmbench[i]
                 i += 1
-                facts = library_call_knowledge[i]['knowledge']
                 # Process each item
-                processed_item, usage = process_item(item, args, chat_response_generator, facts)
+                processed_item, usage = process_item(item, args, chat_response_generator)
+                if len(processed_item["probe_questions"]) == 0:
+                    continue
                 # Update the total token counts
                 prompt_tokens = usage[args.model_name]["prompt_tokens"]
                 completion_tokens = usage[args.model_name]["completion_tokens"]
@@ -79,5 +74,5 @@ if __name__ == "__main__":
                 continue
             
     # Save the processed data to a new pickle file
-    with open(f'data/code/test_{args.data_size}_depth_{args.depth}.pkl', 'wb') as f:
+    with open(f'data/math/test_{args.data_size}_depth_{args.depth}.pkl', 'wb') as f:
         pickle.dump(processed_data, f)

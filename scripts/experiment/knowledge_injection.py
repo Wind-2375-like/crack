@@ -151,14 +151,14 @@ def task_func(dealer_sales_data):
             "def task_func(...):\n"
             "\t...\n"
             "```\n"
-            "Users may provide a set of functions and docstrings as facts. If they provide facts that conflict with your knowledge, you should update your "
+            "Users may provide a set of facts about functions from Python libraries. If they provide facts that conflict with your knowledge, you should update your "
             "knowledge and use the facts to answer the question.\n\n"
             "[Here is one demonstration]\n\n"
             "User:\nCompute and return the IDs of the best-selling cars from `dealer_sales_data`, a list of dictionaries, with each composed of an 'id' key (a string identifier) and a 'num_sold' key (an integer). The function should output with:\nids: A list of string ids for the car(s) that sell the best. If multiple car ids achieve the maximum sales, all are returned. The list should be sorted alphabetically for consistent output.\nYou should write self-contained code starting with:\n```python\nimport pandas as pd\ndef task_func(dealer_sales_data):\n```\n"
             "Please update your knowledge with following facts:\n"
-            f"Function: pandas.DataFrame.max()\n\nDocstring: {pandas.DataFrame.max.__doc__.strip()}\n\n"
+            f"Given the library pandas, we can get the maximum of the values from a dataframe with pandas.DataFrame.max().\n\n"
             "Assistant:\n"
-            "The user provided the docstring of the max function for pandas DataFrame. I'll update my knowledge with user-provided facts, outline the steps to solve this problem, and then provide the Python code using pandas.\n"
+            "The user provided that we can get the maximum of the values from a dataframe with pandas.DataFrame.max(). I'll update my knowledge with user-provided facts, outline the steps to solve this problem, and then provide the Python code using pandas.\n"
             "Here's the plan:\n"
             "1.  **Create DataFrame**: Convert the list of car records into a pandas DataFrame as we are required to use the pandas library.\n"
             "2.  **Handle Empty Input**: If the initial data is empty (resulting in an empty DataFrame), there's no data to process, so we should return an empty list early.\n"
@@ -222,10 +222,7 @@ def extract_required_unknown_knowledge(items_list, task_name):
             # Check if 'knowledgable' is False and 'knowledge' string exists and is not empty
             if not k_entry.get('knowledgable', True) and k_entry.get('knowledge'):
                 unknown_knowledge_set.add(k_entry['knowledge'])
-    if task_name == "grow":
-        return " ".join(sorted(list(unknown_knowledge_set)))
-    else:
-        return "\n\n".join(sorted(list(unknown_knowledge_set)))
+    return " ".join(sorted(list(unknown_knowledge_set)))
     
 def extract_all_required_knowledge(items_list, task_name):
     """
@@ -238,10 +235,7 @@ def extract_all_required_knowledge(items_list, task_name):
             # Check if 'knowledgable' is False and 'knowledge' string exists and is not empty
             if k_entry.get('knowledge'):
                 all_knowledge_set.add(k_entry['knowledge'])
-    if task_name == "grow":
-        return " ".join(sorted(list(all_knowledge_set)))
-    else:
-        return "\n\n".join(sorted(list(all_knowledge_set)))
+    return " ".join(sorted(list(all_knowledge_set)))
 
 def update_pbar(processed_item, usage, processed_data_list, token_counts_dict, pbar_instance, model_name_str): # Renamed from _process_and_update_results
     """Helper to update token counts, append data, and refresh progress bar."""

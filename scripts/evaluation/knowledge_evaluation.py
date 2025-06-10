@@ -80,7 +80,7 @@ If they are equivalent, answer 'Yes' and provide an explanation. Otherwise, answ
 
 Note that if the response does not contain an entity, it should be treated as 'N/A' and not equivalent to the answer.
 """,
-"code": """You are given a question, a canonical function from a library for the question, a corresponding docstring, and the model's response. Each response might also contain a function call from a library. Your task is to use basic Python coding knowledge to evaluate whether the model's response is most probably correct.
+"code": """You are given a question, a canonical function from a library for the question, and the model's response. Each response might also contain a function call from a library. Your task is to use basic Python coding knowledge to evaluate whether the model's response is most probably correct.
 
 If the answer is correct, answer 'Yes' and provide an explanation. Otherwise, answer 'No' and provide an explanation.
 
@@ -91,42 +91,8 @@ Note that if the response does not contain a function call, it should be treated
 Question: 
 Given the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?
 
-Function: pandas.DataFrame(data)
-
-Docstring: Two-dimensional, size-mutable, potentially heterogeneous tabular data.
-
-Data structure also contains labeled axes (rows and columns).
-Arithmetic operations align on both row and column labels. Can be
-thought of as a dict-like container for Series objects. The primary
-pandas data structure.
-
-Parameters
-----------
-data : ndarray (structured or homogeneous), Iterable, dict, or DataFrame
-    Dict can contain Series, arrays, constants, dataclass or list-like objects. If
-    data is a dict, column order follows insertion-order. If a dict contains Series
-    which have an index defined, it is aligned by its index. This alignment also
-    occurs if data is a Series or a DataFrame itself. Alignment is done on
-    Series/DataFrame inputs.
-
-    If data is a list of dicts, column order follows insertion-order.
-
-index : Index or array-like
-    Index to use for resulting frame. Will default to RangeIndex if
-    no indexing information part of input data and no index provided.
-columns : Index or array-like
-    Column labels to use for resulting frame when data does not have them,
-    defaulting to RangeIndex(0, 1, 2, ..., n). If data contains column labels,
-    will perform column selection instead.
-dtype : dtype, default None
-    Data type to force. Only a single dtype is allowed. If None, infer.
-copy : bool or None, default None
-    Copy data from inputs.
-    For dict data, the default of None behaves like ``copy=True``.  For DataFrame
-    or 2d ndarray input, the default of None behaves like ``copy=False``.
-    If data is a dict containing one or more Series (possibly of different dtypes),
-    ``copy=False`` will ensure that these inputs are not copied.
-...
+Function: 
+pandas.DataFrame(data)
 
 Response:
 ```python
@@ -139,11 +105,9 @@ Yes, the response contains the same function call as the ground truth function c
 --- Example 2 ---
 
 Question: 
-... (the same function as above)
+Given the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?
 
 Function: pandas.DataFrame(data)
-
-Docstring: ... (the same docstring as above)
 
 Response:
 ```python
@@ -156,11 +120,9 @@ Yes, the response contains the same function call as the ground truth function c
 --- Example 3 ---
 
 Question: 
-... (the same function as above)
+Given the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?
 
 Function: pandas.DataFrame(data)
-
-Docstring: ... (the same docstring as above)
 
 Response:
 ```python
@@ -260,7 +222,7 @@ def evaluate_probe_item(item, args, chat_response_generator):
             elif args.task_name == "code":
                 llm_input_prompt = (
                     f"Question:\n{question_text}\n\n"
-                    f"{knowledge_text}\n\n"
+                    f"Function:\n{ground_truth_answer_text}\n\n"
                     f"Response:\n```python\n{p_answer_instance}\n```\n\n"
                     f"Correct:\n"
                 )

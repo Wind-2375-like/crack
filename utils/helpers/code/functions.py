@@ -11,11 +11,12 @@ import io
 import unittest
 import os
 import subprocess
+import json
 from contextlib import contextmanager
 
 
 # --- Global Cache ---
-GLOBAL_SIGNATURE_CACHE = {}
+GLOBAL_KNOWLEDGE_CACHE = {}
 GLOBAL_QUESTION_CACHE = {}
 
 # --- 1. Dynamic API Information Fetching ---
@@ -257,23 +258,49 @@ def process_item(item, args, chat_response_generator, facts):
         "Your task is to generate probe questions based on the provided code and library calls."
     )
     
-    user_template = (
-        "You are asked to propose a question whose answer is [ANSWER].\n"
-        "Your question should start with \"Given the library (libraries) [LIB], how can we ...?\"\n\n"
-        "You should never reveal the answer or its specific arguments in your question.\n\n"
-        "The goal is to create a question that leads to the simplest, most basic way to call or instantiate the function/class in [ANSWER], using all default parameter values.\n"
-        "- If [ANSWER] includes specific keyword arguments (e.g., `sklearn.some_func(arg1=value)`), your question MUST be phrased to necessitate those exact keyword arguments.\n"
-        "- If [ANSWER] is a simple call with no keyword arguments (e.g., `sklearn.SomeClass()` or `numpy.some_func()`), your question should ask for the standard or default way to achieve the described action, implying no specific non-default parameters are needed. Do not hint at any optional parameters or their default values.\n\n"
-        "You can refer to the following docstring for context on the function's purpose:\n[DOCSTRING]\n\n"
-        "Use one sentence to propose the question."
-    )
+    user_template = """You are asked to generate two items based on the function [ANSWER]:
+1.  A **probe question** about the function's basic usage.
+2.  A declarative **answer sentence** that resolves the question.
+
+You can refer to the following docstring for context on the function's purpose:
+[DOCSTRING]
+
+---
+**INSTRUCTIONS**
+
+**1. For the "question":**
+   - It MUST start with "Given the library (libraries) [LIB], how can we ...?".
+   - It MUST be a single sentence.
+   - It MUST NOT reveal the function name `[ANSWER]` or its specific arguments.
+   - It should describe a goal that leads to the simplest, most basic call of the function.
+   - If `[ANSWER]` includes specific keyword arguments (e.g., `func(arg1=val)`), the question must be phrased to necessitate those exact arguments.
+   - If `[ANSWER]` is a simple call with no keyword arguments (e.g., `func()`), the question should ask for the standard way to achieve the action.
+
+**2. For the "answer":**
+   - It MUST be a single, complete, context-independent sentence.
+   - It MUST combine the premise of the question you just generated with the code snippet `[ANSWER]` to form a factual statement.
+   - The sentence should state that the action in the question can be accomplished using the provided code.
+
+---
+**OUTPUT FORMAT**
+
+You MUST output your response as a valid JSON object and nothing else. Do not add any explanatory text before or after the JSON.
+
+Use the following structure:
+{
+  "question": "The question you generated.",
+  "answer": "The answer sentence you generated."
+}"""
     
     probe_questions = []
+    docstrings = []
     
     for fact in facts:
         answer = fact.get('canonical_function', '')
-        knowledge = f"Function: {fact.get('canonical_function', '')}\n\nDocstring: {fact.get('docstring', '')}"
-        user_input = user_template.replace("[ANSWER]", answer).replace("[LIB]", fact.get('library', '')).replace("[DOCSTRING]", fact.get('docstring', ''))
+        docstring = fact.get('docstring', '')
+        docstrings.append(docstring)
+        knowledge = f"Function: {fact.get('canonical_function', '')}\n\nDocstring: {docstring}"
+        user_input = user_template.replace("[ANSWER]", answer).replace("[LIB]", fact.get('library', '')).replace("[DOCSTRING]", docstring)
         if answer in GLOBAL_QUESTION_CACHE:
             flag = False
             for p in probe_questions:
@@ -282,6 +309,7 @@ def process_item(item, args, chat_response_generator, facts):
             if flag:
                 continue      
             question = GLOBAL_QUESTION_CACHE[answer]
+            knowledge = GLOBAL_KNOWLEDGE_CACHE[answer]
         else:
             chat_response_generator.update_chat_history([
                 ("system", system_prompt),
@@ -293,8 +321,21 @@ def process_item(item, args, chat_response_generator, facts):
                 n=1,
                 max_tokens=512,
             )[0]
-            question = response.strip()
-            GLOBAL_QUESTION_CACHE[answer] = question
+            try:
+                response_data = json.loads(response)
+                question = response_data.get("question")
+                knowledge = response_data.get("answer") # This is your complete sentence
+                GLOBAL_QUESTION_CACHE[answer] = question
+                GLOBAL_KNOWLEDGE_CACHE[answer] = knowledge
+                # Append to your list
+                if question and knowledge:
+                    probe_questions.append({
+                        "question": question,
+                        "answer": answer,
+                        "knowledge": knowledge
+                    })
+            except json.JSONDecodeError:
+                continue
         probe_questions.append({
             "question": question,
             "answer": answer,
@@ -316,6 +357,7 @@ def process_item(item, args, chat_response_generator, facts):
             "entry_point": item.get('entry_point', ''),
             "doc_struct": item.get('doc_struct', ''),
             "libs": item.get('libs', []),
+            "docstrings": docstrings
         }
     }
     
