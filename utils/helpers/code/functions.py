@@ -299,7 +299,6 @@ Use the following structure:
         answer = fact.get('canonical_function', '')
         docstring = fact.get('docstring', '')
         docstrings.append(docstring)
-        knowledge = f"Function: {fact.get('canonical_function', '')}\n\nDocstring: {docstring}"
         user_input = user_template.replace("[ANSWER]", answer).replace("[LIB]", fact.get('library', '')).replace("[DOCSTRING]", docstring)
         if answer in GLOBAL_QUESTION_CACHE:
             flag = False
@@ -327,13 +326,6 @@ Use the following structure:
                 knowledge = response_data.get("answer") # This is your complete sentence
                 GLOBAL_QUESTION_CACHE[answer] = question
                 GLOBAL_KNOWLEDGE_CACHE[answer] = knowledge
-                # Append to your list
-                if question and knowledge:
-                    probe_questions.append({
-                        "question": question,
-                        "answer": answer,
-                        "knowledge": knowledge
-                    })
             except json.JSONDecodeError:
                 continue
         probe_questions.append({

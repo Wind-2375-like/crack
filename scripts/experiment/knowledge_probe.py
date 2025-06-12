@@ -57,6 +57,12 @@ def probe_item(item, args, chat_response_generator):
         chat_response_generator.update_chat_history([
             ("system", "Answer the question with a Python code snippet, which requires ONLY ONE direct function or class constructor call from ONLY ONE library.\nProvide ONLY ONE function or constructor call itself with correct positional arguments.\n- Do NOT include import statements.\n- Do NOT include example data, variable assignments, or any other code.\n- For each keyword argument of the function, if the question implies specific keyword arguments, include them in the function call. If the question does not require the keyword argument explicitly or only require it with its default value, the function can be called without this keyword argument.\n- Please make an educated guess and always return a function call.\n\n[Here is one demonstration]\n\nUser:\nGiven the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?\n\nAssistant:\n```python\npandas.DataFrame(data)\n```"),
         ])
+    elif args.task_name == "math":
+        chat_response_generator.update_chat_history([
+            ("system", "Answer the math question with a concise sentence. Provide only the direct answer to the math question and no more additional reasoning.\n\n[Here is one demonstration]\n\nUser:\nGiven the equations $3p+e=1.24$ and $5p+e=1.82$, what specific operation will eliminate the variable 'e'?\n\nAssistant:\nSubtracting the first equation from the second will eliminate the variable 'e'."),
+        ])
+    else:
+        raise NotImplementedError(f"Task {args.task_name} is not implemented.")
 
     responses = chat_response_generator.generate_response(
         f"User:\n{item["question"]}\nAssistant:\n",
@@ -113,9 +119,6 @@ if __name__ == "__main__":
             # Update the progress bar with the number of tokens used
             pbar.set_postfix_str(f"Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
             pbar.update(1)
-            # Save the processed data on the fly
-            with open(f'data/eval_results/{args.task_name}/probe/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'wb') as f:
-                pickle.dump(processed_data, f)
 
     # Save the processed data to a new pickle file
     with open(f'data/eval_results/{args.task_name}/probe/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'wb') as f:

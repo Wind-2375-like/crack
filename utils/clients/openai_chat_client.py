@@ -21,14 +21,22 @@ class OpenAIChatClient(BaseChatClient):
         max_tokens = kwargs.get("max_tokens", 2048)
         response_format = kwargs.get("response_format", {"type": "text"})
 
-        return self.client.chat.completions.create(
-            model=model_name,
-            messages=self._process_message(messages),
-            temperature=temperature,
-            top_p=top_p,
-            frequency_penalty=frequency_penalty,
-            presence_penalty=presence_penalty,
-            n=n,
-            response_format=response_format,
-            max_tokens=max_tokens,
-        )
+        if model_name == "gpt-4.1-mini":
+            return self.client.chat.completions.create(
+                model=model_name,
+                messages=self._process_message(messages),
+                temperature=temperature,
+                top_p=top_p,
+                frequency_penalty=frequency_penalty,
+                presence_penalty=presence_penalty,
+                n=n,
+                response_format=response_format,
+                max_tokens=max_tokens,
+            )
+        elif model_name == "o4-mini":
+            return self.client.chat.completions.create(
+                model=model_name,
+                messages=self._process_message(messages),
+                response_format=response_format,
+                max_completion_tokens=max_tokens,
+            )

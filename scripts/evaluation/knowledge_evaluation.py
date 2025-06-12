@@ -131,7 +131,41 @@ pandas.DataFrame(data, dtype="float")
 
 Correct:
 No, the response contains a different function call than the ground truth function call. The function call `pandas.DataFrame(data, dtype="float")` specifies a dtype of "float", which is not equivalent to the ground truth function call that does not specify a dtype. The ground truth function call creates a DataFrame from the provided data without any specific dtype.
-"""
+""",
+    "math": """You are given a question, a response, and a ground truth answer. Your task is to use math knowledge and ground truth to evaluate whether the response most probably answers the question.
+
+If they are equivalent, answer 'Yes' and provide an explanation. Otherwise, answer 'No' and provide an explanation.
+
+Note that if the response does not contain an entity, it should be treated as 'N/A' and not equivalent to the answer.
+
+Examples:
+
+Question:
+Given the equations $3p+e=1.24$ and $5p+e=1.82$, what specific operation will eliminate the variable 'e'?
+Response:
+Subtracting the first equation from the second one, then we will have $2p=0.58$ and eliminate 'e'.
+Answer:
+Given the equations $3p+e=1.24$ and $5p+e=1.82$, subtracting the first equation from the second will eliminate the variable 'e'.
+Equivalence:
+Yes, it mentions what it is in the ground truth that subtracting one equation from another will eliminate the variable 'e'.
+
+Question:
+Given the equations $3p+e=1.24$ and $5p+e=1.82$, what specific operation will eliminate the variable 'e'?
+Response:
+Adding the first equation to the second one will eliminate 'e'.
+Answer:
+Given the equations $3p+e=1.24$ and $5p+e=1.82$, subtracting the first equation from the second will eliminate the variable 'e'.
+Equivalence:
+No, it mentions adding one equation to another, different from the ground truth answer which subtracts the first equation from the second one.
+
+Question:
+Given the equations $3p+e=1.24$ and $5p+e=1.82$, what specific operation will eliminate the variable 'e'?
+Response:
+After eliminating 'e', we have $p=0.29$.
+Answer:
+Given the equations $3p+e=1.24$ and $5p+e=1.82$, subtracting the first equation from the second will eliminate the variable 'e'.
+Equivalence:
+No, it fails to mention that subtracting the first equation from the second one will eliminate 'e'."""
 }
 
 # Internal key for representing the group of answers equivalent to ground truth in merged_frequencies
