@@ -174,6 +174,48 @@ def task_func(dealer_sales_data):
         else: # No knowledge injection or no "unknown" knowledge found for this scope
             prepared_system_prompt = system_prompt_without_injection
             prepared_user_prompt = f"User:\n{item['question']}\nAssistant:\n"
+    elif args.task_name == "math":
+        system_prompt_without_injection = (
+            "You are given a question. To answer the question, you should think step by step. "
+            "Use line breaks between steps, but do not use line breaks within each step. "
+            "The final answer to the question should start with "
+            "\"The answer is ...\", and should be placed at the final step. "
+            "Please make an educated guess and always return an answer.\n\n"
+            "[Here is one demonstration]\n\n"
+            "User:\nThree pencils and a jumbo eraser cost $1.24. Five pencils and a jumbo eraser cost $1.82. No prices include tax. In cents, what is the cost of a pencil?\n\n"
+            "Assistant:\n"
+            "1.  Let's call the price of a pencil p and the price of a jumbo eraser e. Then we can write two equations.\n"
+            "2.  We have $3p+e=1.24$ and $5p+e=1.82$.\n"
+            "3.  To solve this system, let's subtract the first equation from the second equation. This will eliminate e.\n"
+            "4.  $5p+e-3p-e=1.82-1.24$.\n"
+            "5.  This simplifies to $2p=0.58$. So $p=0.29$.\n"
+            "6.  That means a pencil costs 29 cents."
+        )
+        
+        system_prompt_after_injection = (
+            "You are given a question. To answer the question, you should think step by step. "
+            "Use line breaks between steps, but do not use line breaks within each step. "
+            "The final answer to the question should start with "
+            "\"The answer is ...\", and should be placed at the final step. "
+            "Please make an educated guess and always return an answer.\n\n"
+            "[Here is one demonstration]\n\n"
+            "User:\nThree pencils and a jumbo eraser cost $1.24. Five pencils and a jumbo eraser cost $1.82. No prices include tax. In cents, what is the cost of a pencil?\nPlease update your knowledge with the following facts:\n"
+            "Given the equations $3p+e=1.24$ and $5p+e=1.82$, subtracting the first equation from the second will eliminate the variable 'e'.\n\n"
+            "Assistant:\n"
+            "1.  Let's call the price of a pencil p and the price of a jumbo eraser e. Then we can write two equations.\n"
+            "2.  We have $3p+e=1.24$ and $5p+e=1.82$.\n"
+            "3. The user provided that subtracting $3p+e=1.24$ from $5p+e=1.82$ will eliminate the variable 'e'.\n"
+            "4. I will update my knowledge with the provided fact to solve this system. Let's subtract the first equation from the second equation. This will eliminate e.\n"
+            "5.  $5p+e-3p-e=1.82-1.24$.\n"
+            "6.  This simplifies to $2p=0.58$. So $p=0.29$.\n"
+            "7.  That means a pencil costs 29 cents."
+        )
+        if args.inject_knowledge and knowledge_to_inject_str: # Inject only if flag is true AND there's knowledge
+            prepared_system_prompt = system_prompt_after_injection
+            prepared_user_prompt = f"User:\n{item['question']}\nPlease update your knowledge with the following facts:\n{knowledge_to_inject_str}\nAssistant:\n"
+        else: # No knowledge injection or no "unknown" knowledge found for this scope
+            prepared_system_prompt = system_prompt_without_injection
+            prepared_user_prompt = f"User:\n{item['question']}\nAssistant:\n"
     else:
         raise NotImplementedError(f"Task {args.task_name} is not implemented.")
 

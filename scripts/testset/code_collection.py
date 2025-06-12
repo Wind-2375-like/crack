@@ -57,7 +57,7 @@ if __name__ == "__main__":
     with tqdm(total=args.data_size, desc="Processing codes", unit="code") as pbar:
         i = 0
         count = 0
-        while count <= args.data_size:
+        while count < args.data_size:
             try:
                 item = bigcodebench[i]
                 i += 1

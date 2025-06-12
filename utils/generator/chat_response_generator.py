@@ -17,6 +17,7 @@ class ChatResponseGenerator:
         self.update_chat_history(chat_history)
         self.model_name_to_openai_or_together = {
             "gpt-4.1-mini": "openai",
+            "o4-mini": "openai",
             "meta-llama/Llama-3.2-3B-Instruct-Turbo": "together",
             "meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo": "together",
             "meta-llama/Meta-Llama-3-8B-Instruct-Turbo": "together",

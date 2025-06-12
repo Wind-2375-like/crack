@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument('--data_size', type=int, default=100, help="Number of math questions to process")
     parser.add_argument('--depth', type=int, default=4, help="Useless parameter")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
-    parser.add_argument('--model_name', type=str, default="gpt-4.1-mini", help="Model name for the API")
+    parser.add_argument('--model_name', type=str, default="o4-mini", help="Model name for the API")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -46,12 +46,14 @@ if __name__ == "__main__":
         local=False
     )
     
-    prmbench = load_dataset("hitsmy/PRMBench_Preview", split="train")
+    # prmbench = load_dataset("hitsmy/PRMBench_Preview", split="train")
+    with open("data/math/processed_reason_eval.pkl", "rb") as f:
+        prmbench = pickle.load(f)
 
-    with tqdm(total=args.data_size, desc="Processing math", unit="code") as pbar:
+    with tqdm(total=args.data_size, desc="Processing math", unit="math") as pbar:
         i = 0
         count = 0
-        while count <= args.data_size:
+        while count < args.data_size:
             try:
                 item = prmbench[i]
                 i += 1

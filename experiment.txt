@@ -1,0 +1,20 @@
+python scripts/experiment/knowledge_injection.py --task_name code --model_name llama-3.2-1b
+python scripts/experiment/knowledge_injection.py --task_name code --model_name llama-3.2-3b
+python scripts/experiment/knowledge_injection.py --task_name code --model_name qwen-2.5-1.5b
+python scripts/experiment/knowledge_injection.py --task_name code --model_name qwen-2.5-3b
+python scripts/experiment/knowledge_injection.py --task_name code --model_name llama-3.2-1b --inject_knowledge --knowledge_aggregation_scope 1
+python scripts/experiment/knowledge_injection.py --task_name code --model_name llama-3.2-3b --inject_knowledge --knowledge_aggregation_scope 1
+python scripts/experiment/knowledge_injection.py --task_name code --model_name qwen-2.5-1.5b --inject_knowledge --knowledge_aggregation_scope 1
+python scripts/experiment/knowledge_injection.py --task_name code --model_name qwen-2.5-3b --inject_knowledge --knowledge_aggregation_scope 1
+python scripts/experiment/knowledge_injection.py --task_name code --model_name llama-3.2-1b --inject_knowledge --knowledge_aggregation_scope 10
+python scripts/experiment/knowledge_injection.py --task_name code --model_name llama-3.2-3b --inject_knowledge --knowledge_aggregation_scope 10
+python scripts/experiment/knowledge_injection.py --task_name code --model_name qwen-2.5-1.5b --inject_knowledge --knowledge_aggregation_scope 10
+python scripts/experiment/knowledge_injection.py --task_name code --model_name qwen-2.5-3b --inject_knowledge --knowledge_aggregation_scope 10
+python scripts/experiment/knowledge_injection.py --task_name code --model_name llama-3.2-1b --inject_knowledge --knowledge_aggregation_scope 100
+python scripts/experiment/knowledge_injection.py --task_name code --model_name llama-3.2-3b --inject_knowledge --knowledge_aggregation_scope 100
+python scripts/experiment/knowledge_injection.py --task_name code --model_name qwen-2.5-1.5b --inject_knowledge --knowledge_aggregation_scope 100
+python scripts/experiment/knowledge_injection.py --task_name code --model_name qwen-2.5-3b --inject_knowledge --knowledge_aggregation_scope 100
+python scripts/experiment/knowledge_injection.py --task_name code --model_name llama-3.2-1b --inject_knowledge --knowledge_aggregation_scope 1 --method all
+python scripts/experiment/knowledge_injection.py --task_name code --model_name llama-3.2-3b --inject_knowledge --knowledge_aggregation_scope 1 --method all
+python scripts/experiment/knowledge_injection.py --task_name code --model_name qwen-2.5-1.5b --inject_knowledge --knowledge_aggregation_scope 1 --method all
+python scripts/experiment/knowledge_injection.py --task_name code --model_name qwen-2.5-3b --inject_knowledge --knowledge_aggregation_scope 1 --method all
