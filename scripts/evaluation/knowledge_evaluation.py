@@ -134,9 +134,9 @@ No, the response contains a different function call than the ground truth functi
 """,
     "math": """You are given a question, a response, and a ground truth answer. Your task is to use math knowledge and ground truth to evaluate whether the response most probably answers the question.
 
-If they are equivalent, answer 'Yes' and provide an explanation. Otherwise, answer 'No' and provide an explanation.
+If the response answers the question, answer 'Yes' and provide an explanation. Otherwise, answer 'No' and provide an explanation.
 
-Note that if the response does not contain an entity, it should be treated as 'N/A' and not equivalent to the answer.
+Note that the ground truth is just a reference of correct answer. An answer is correct does not mean that it should be strictly same as the ground truth. You should perform mathematical knowledge to infer that.
 
 Examples:
 
@@ -146,8 +146,35 @@ Response:
 Subtracting the first equation from the second one, then we will have $2p=0.58$ and eliminate 'e'.
 Answer:
 Given the equations $3p+e=1.24$ and $5p+e=1.82$, subtracting the first equation from the second will eliminate the variable 'e'.
-Equivalence:
+Correctness:
 Yes, it mentions what it is in the ground truth that subtracting one equation from another will eliminate the variable 'e'.
+
+Question:
+If half the value of 3x - 9 is equal to x + 37, how can this relationship be written as an equation?
+Response:
+3x - 9 = 2(x + 37)
+Answer:
+If half the value of 3x - 9 is equal to x + 37, it can be written as (1/2)(3x - 9) = x + 37.
+Correctness:
+Yes, it mentions 3x - 9 = 2(x + 37) while the ground truth mentions (1/2)(3x - 9) = x + 37. Though they are different, they are mathematically equivalent and the response is also correct.
+
+Question:
+How do you combine the like imaginary terms -3i and 12i in a sum?
+Response:
+To combine the like imaginary terms, add or subtract their coefficients, which are the numbers in front of the 'i'.
+Answer:
+Like terms with the same imaginary unit i are combined by adding their coefficients, so -3 + 12 = 9, giving 9i.
+Correctness:
+Yes, though the response does not explicitly give 9i, the answer "add or subtract their coefficients, which are the numbers in front of the 'i'" is also valid because it tells how to imaginary terms -3i and 12i.
+
+Question:
+According to the associative property of addition, how can we regroup the sum 6 - 3i + 12i?
+Response:
+The associative property of addition states that the grouping of terms does not affect their sum, so 6 - 3i + 12i can be written as (6 - 3i) + 12i.
+Answer:
+We can regroup the sum as 6 + (12i - 3i).
+Correctness:
+Yes, though the response does not match the specific regrouping given in the answer, both are valid regroupings due to the associative property.
 
 Question:
 Given the equations $3p+e=1.24$ and $5p+e=1.82$, what specific operation will eliminate the variable 'e'?
@@ -155,7 +182,7 @@ Response:
 Adding the first equation to the second one will eliminate 'e'.
 Answer:
 Given the equations $3p+e=1.24$ and $5p+e=1.82$, subtracting the first equation from the second will eliminate the variable 'e'.
-Equivalence:
+Correctness:
 No, it mentions adding one equation to another, different from the ground truth answer which subtracts the first equation from the second one.
 
 Question:
@@ -164,7 +191,7 @@ Response:
 After eliminating 'e', we have $p=0.29$.
 Answer:
 Given the equations $3p+e=1.24$ and $5p+e=1.82$, subtracting the first equation from the second will eliminate the variable 'e'.
-Equivalence:
+Correctness:
 No, it fails to mention that subtracting the first equation from the second one will eliminate 'e'."""
 }
 
@@ -230,6 +257,10 @@ def evaluate_probe_item(item, args, chat_response_generator):
                 probe_answers_from_item.append(match.group(1).strip())
             else:
                 probe_answers_from_item.append(i.strip())
+    elif args.task_name == "math":
+        probe_answers_from_item = item["probe_answers"]
+    else:
+        raise NotImplementedError(f"Task {args.task_name} is not implemented.")
         
     ground_truth_answer_text = item["answer"]
     question_text = item["question"]
@@ -260,8 +291,15 @@ def evaluate_probe_item(item, args, chat_response_generator):
                     f"Response:\n```python\n{p_answer_instance}\n```\n\n"
                     f"Correct:\n"
                 )
+            elif args.task_name == "math":
+                llm_input_prompt = (
+                    f"Question:\n{question_text}\n"
+                    f"Response:\n{p_answer_instance}\n"
+                    f"Answer:\n{ground_truth_answer_text}\n"
+                    f"Equivalence:\n"
+                )
             else:
-                raise NotImplementedError
+                raise NotImplementedError(f"Task {args.task_name} is not implemented.")
             llm_responses = chat_response_generator.generate_response(
                 llm_input_prompt,
                 temperature=0, top_p=1, n=1, max_tokens=100
