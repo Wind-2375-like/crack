@@ -13,6 +13,40 @@ from utils.generator.chat_response_generator import ChatResponseGenerator
 from scripts.evaluation.knowledge_evaluation import PROMPT_TEMPLATES as PROMPT_TEMPLATES_EQUIVALENCE
 from utils.helpers.code import unsafe_execute_worker, EXECUTION_TIMEOUT
 
+PROMPT_TEMPLATES_EQUIVALENCE_MATH = {
+    "math": """You are given a question, a final step of response, and a ground truth answer. The final step may contain a step number and "the answer is ...". PLEASE IGNORE THE STEP NUMBER. Your task is to use math knowledge to evaluate whether the response is mathematically equivalent to the ground truth answer.
+
+If they are equivalent, answer 'Yes' and provide an explanation. Otherwise, answer 'No' and provide an explanation.
+
+Examples:
+
+Question:
+Evaluate $(1+2i)6-3i$.
+Response:
+7. The answer is $9i+6$.
+Ground Truth:
+6+9i
+Correctness:
+Yes, the answer from response $9i+6$ is equivalent to the ground truth $6+9i$.
+
+Question:
+Evaluate $(1+2i)6-3i$.
+Response:
+7. The answer is $9+6i$.
+Ground Truth:
+6+9i
+Correctness:
+No, the answer from response is different from ground truth. The real part and the imaginary part are reversed.
+
+Question:
+The lengths of two opposite sides of a square are decreased by $40\\%$ while the lengths of the other two sides are increased by $50\\%$ to form a rectangle. By what percent does the square's area decrease?
+Response:
+Therefore, the square's area decreases by 10%.
+Ground Truth:
+10
+Correctness:
+Yes, the response "10%" is equivalent to the ground truth "10" because the question asks for a percentage."""
+}
 
 PROMPT_TEMPLATES_NLI = {
     "grow": """You are an expert in natural language inference and commonsense reasoning. You will be given a "Context" (the model's reasoning response) and a "Statement" (a piece of knowledge). Your task is to determine if the Context finally entails, contradicts, or is neutral with respect to the Statement.
@@ -181,7 +215,53 @@ Neutral. The code does not contain any function call related to the provided fun
 Answer "Entailment", "Contradiction", or "Neutral" and provide a brief explanation of your reasoning.
 
 Note that if the Context mentions some knowledge is "unknown", it should be treated as "N/A" and contradictory to the Statement.
-"""
+""",
+"math": """You are an expert in natural language inference and math reasoning. You will be given a "Context" (the model's reasoning response) and a "Statement" (a piece of knowledge). Your task is to determine if the Context finally entails, contradicts, or is neutral with respect to the Statement.
+
+Answer "Entailment", "Contradiction", or "Neutral" and provide a brief explanation of your reasoning.
+
+Note that if the Statement can be indirectly implied from the Context with math reasoning, it should also be treated as entailment.
+
+Examples:
+
+Context:
+Three pencils and a jumbo eraser cost $1.24. Five pencils and a jumbo eraser cost $1.82. No prices include tax. In cents, what is the cost of a pencil?
+1. Let's call the price of a pencil x and the price of a jumbo eraser y. Then we can write two equations.
+2. We have $3x+y=1.24$ and $5x+y=1.82$.
+3. To solve this system, let's subtract the first equation from the second equation. This will eliminate y.
+4. This simplifies to $x=0.29$.
+5. That means a pencil costs 29 cents.
+6. The answer is 29 cents.
+Statement:
+After subtracting $3p+e=1.24$ from $5p+e=1.82$, we will have $2p = 0.58$, which solves to $p = 0.29$.
+NLI:
+Entailment. The statement is a direct summary of the mathematical reasoning presented in steps 2, 3, and 4 in the context. It describes the exact same process and reaches the identical conclusion. The use of different variables (p and e instead of x and y) is a superficial change that doesn't affect the logic, and missing $2p = 0.58$ does not matter because $x = 0.29$ already implies it.
+
+Context:
+Three pencils and a jumbo eraser cost $1.24. Five pencils and a jumbo eraser cost $1.82. No prices include tax. In cents, what is the cost of a pencil?
+1. Let's call the price of a pencil x and the price of a jumbo eraser y. Then we can write two equations.
+2. We have $3x+y=1.24$ and $5x+y=1.82$.
+3. To solve this system, let's add the first equation to the second equation. This will eliminate y.
+4. This simplifies to $2x=0.58$. So $x=0.29$.
+5. That means a pencil costs 29 cents.
+6. The answer is 29 cents.
+Statement:
+After subtracting $3p+e=1.24$ from $5p+e=1.82$, we will have $2p = 0.58$, which solves to $p = 0.29$.
+NLI:
+Contradiction. The context states in step 3 that the two equations should be added. The statement, however, describes the process using subtraction. Since adding and subtracting are opposite operations, the statement directly contradicts the method described in the context.
+
+Context:
+Three pencils and a jumbo eraser cost $1.24. Five pencils and a jumbo eraser cost $1.82. No prices include tax. In cents, what is the cost of a pencil?
+1. Let's call the price of a pencil x and the price of a jumbo eraser y. Then we can write two equations.
+2. We have $3x+y=1.24$ and $5x+y=1.82$.
+3. To solve this system, let's add the first equation to the second equation. This will eliminate y.
+4. This simplifies to $2x=0.58$. So $x=0.29$.
+5. That means a pencil costs 29 cents.
+6. The answer is 29 cents.
+Statement:
+The commutative rule, also known as the commutative property, states that the order of numbers in addition and multiplication doesn't change the result.
+NLI:
+Neutral. The context does not provide any information about the commutative rules. The statement is completely irrelevant to the context."""
 }
 
 def parse_args():
@@ -313,7 +393,7 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
         if item.get("model_response") and item["model_response"].strip():
             model_response_lines = [line.strip() for line in item["model_response"].split("\n") if line.strip()]
             if model_response_lines:
-                model_final_answer_candidate = model_response_lines[-1]\
+                model_final_answer_candidate = model_response_lines[-1]
     
         system_prompt_key_equivalence = args.task_name if args.task_name in PROMPT_TEMPLATES_EQUIVALENCE else "default"
         system_prompt_equivalence = PROMPT_TEMPLATES_EQUIVALENCE[system_prompt_key_equivalence]
@@ -346,6 +426,35 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
         final_answer_correct, final_answer_explanation = _execute_llm_generated_code_and_test(model_final_answer_candidate, unit_test)
         item["final_answer_correct"] = final_answer_correct
         item["final_answer_explanation"] = final_answer_explanation
+    elif args.task_name == "math":
+        model_final_answer_candidate = ""
+        if item.get("model_response") and item["model_response"].strip():
+            model_response_lines = [line.strip() for line in item["model_response"].split("\n") if line.strip()]
+            if model_response_lines:
+                model_final_answer_candidate = model_response_lines[-1]
+    
+        system_prompt_key_equivalence = args.task_name if args.task_name in PROMPT_TEMPLATES_EQUIVALENCE_MATH else "default"
+        system_prompt_equivalence = PROMPT_TEMPLATES_EQUIVALENCE_MATH[system_prompt_key_equivalence]
+        
+        llm_input_prompt_equivalence = (
+            f"Question:\n{item['question']}\n"
+            f"Response:\n{model_final_answer_candidate}\n" # Use extracted model's final answer line
+            f"Ground Truth:\n{ground_truth_final_answer}\n"
+            f"Equivalence:\n"
+        )
+        chat_response_generator.update_chat_history([
+            ("system", system_prompt_equivalence),
+        ])
+        raw_equivalence_response = chat_response_generator.generate_response(
+            llm_input_prompt_equivalence,
+            temperature=0, top_p=1, n=1, max_tokens=100
+        )[0]
+        
+        final_answer_correct, final_answer_explanation = _parse_llm_equivalence_response(raw_equivalence_response)
+        item["final_answer_correct"] = final_answer_correct
+        item["final_answer_explanation"] = final_answer_explanation
+    else:
+        return NotImplementedError(f"Task {args.task_name} is not implemented!")
 
     # 2. Evaluate whether each knowledge in required_knowledge is entailment/contradiction/neutral with the model response
     chat_response_generator.update_chat_history([
@@ -355,7 +464,6 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
 
     for knowledge_item in item["required_knowledge"]:
         knowledge_text = knowledge_item["knowledge"]
-        answer_text = knowledge_item["answer"]
         if args.task_name == "grow":
             llm_input_prompt_nli = (
                 f"Context:\n{model_full_response_context}\n\n"
@@ -363,11 +471,20 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
                 f"NLI:\n"
             )
         elif args.task_name == "code":
+            answer_text = knowledge_item["answer"]
             llm_input_prompt_nli = (
                 f"Code:\n```python\n{model_final_answer_candidate}\n```\n\n"
                 f"Function:\n{answer_text}\n\n"
                 f"NLI:\n"
             )
+        elif args.task_name == "math":
+            llm_input_prompt_nli = (
+                f"Context:\n{model_full_response_context}\n\n"
+                f"Statement:\n{knowledge_text}\n\n"
+                f"NLI:\n"
+            )
+        else:
+            raise NotImplementedError(f"Task {args.task_name} is not implemented!")
         
         raw_nli_response = chat_response_generator.generate_response(
             llm_input_prompt_nli,
@@ -422,7 +539,11 @@ if __name__ == "__main__":
     # Use tqdm to show progress
     with tqdm(total=len(eval_dataset), desc="Processing chains for evaluation") as pbar:
         for item_idx, item in enumerate(eval_dataset):
-            item["other_metadata"] = raw_dataset[item_idx].get("other_metadata", {})
+            raw_item = raw_dataset[item_idx]
+            item["other_metadata"] = raw_item.get("other_metadata", {})
+            if args.task_name == "code":
+                for idx, k in enumerate(item["required_knowledge"]):
+                    k['answer'] = raw_item.get("probe_questions", [])[idx].get("answer", "")
             # Process each chain
             processed_item, usage = evaluate_reasoning_item(item, args, chat_response_generator)
             # Update the total token counts

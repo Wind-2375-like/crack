@@ -60,8 +60,8 @@ if __name__ == "__main__":
         while count < args.data_size:
             try:
                 item = bigcodebench[i]
-                i += 1
                 facts = library_call_knowledge[i]['knowledge']
+                i += 1
                 # Process each item
                 processed_item, usage = process_item(item, args, chat_response_generator, facts)
                 # Update the total token counts
