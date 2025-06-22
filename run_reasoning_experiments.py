@@ -17,13 +17,14 @@ def generate_commands(args):
     # --- 2. Evaluations with knowledge injection ---
     if args.run_inject_eval:
         print("Generating knowledge injection evaluation commands...")
-        for task, model, scope in itertools.product(args.task_names, args.model_names, args.knowledge_aggregation_scopes):
+        for task, model, method, scope in itertools.product(args.task_names, args.model_names, args.method_names, args.knowledge_aggregation_scopes):
             commands.append(
                 base_script + [
                     "--inject_knowledge",
                     "--knowledge_aggregation_scope", str(scope),
                     "--task_name", task,
-                    "--model_name", model
+                    "--model_name", model,
+                    "--method", method
                 ]
             )
     
@@ -50,6 +51,7 @@ if __name__ == "__main__":
     # --- Model and Task Arguments ---
     parser.add_argument('--model_names', nargs='+', default=["llama-3.2-1b", "llama-3.2-3b", "qwen-2.5-1.5b", "qwen-2.5-3b"], help='List of model names to evaluate.')
     parser.add_argument('--task_names', nargs='+', default=["code", "math", "grow"], help='List of task names to evaluate.')
+    parser.add_argument('--method_names', nargs='+', default=["base", "mello"], help='List of method names to evaluate.')
     
     # --- Evaluation Type Control ---
     parser.add_argument('--no-base-eval', action='store_false', dest='run_base_eval', help='Do not run base evaluations.')
