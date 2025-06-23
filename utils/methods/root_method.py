@@ -1,4 +1,3 @@
-# methods/base_method.py
 from abc import ABC, abstractmethod
 
 class RootExperimentMethod(ABC):
