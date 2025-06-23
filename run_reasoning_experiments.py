@@ -2,6 +2,19 @@ import itertools
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
 from utils.helpers import run_command
+import os
+
+def get_output_file_path(task_name, model_name, inject_knowledge, method, scope, data_size=100):
+    """
+    Constructs the output file path based on evaluation parameters.
+    """
+    output_dir = f'data/eval_results/{task_name}/injection/'
+    default_scope_for_original = '1' 
+    if inject_knowledge:
+        filename = f"{method}_{data_size}_depth_4_{model_name}_{scope}.pkl"
+    else:
+        filename = f"original_{data_size}_depth_4_{model_name}_{default_scope_for_original}.pkl"
+    return os.path.join(output_dir, filename)
 
 def generate_commands(args):
     """Generates all the evaluation commands based on the provided arguments."""
@@ -12,12 +25,20 @@ def generate_commands(args):
     if args.run_base_eval:
         print("Generating base evaluation commands...")
         for task, model in itertools.product(args.task_names, args.model_names):
+            output_path = get_output_file_path(task, model, inject_knowledge=False, method='base', scope=1)
+            if not args.overwrite and os.path.exists(output_path):
+                print(f"SKIPPING (result exists): {output_path}")
+                continue
             commands.append(base_script + ["--task_name", task, "--model_name", model])
 
     # --- 2. Evaluations with knowledge injection ---
     if args.run_inject_eval:
         print("Generating knowledge injection evaluation commands...")
         for task, model, method, scope in itertools.product(args.task_names, args.model_names, args.method_names, args.knowledge_aggregation_scopes):
+            output_path = get_output_file_path(task, model, inject_knowledge=True, method=method, scope=scope)
+            if not args.overwrite and os.path.exists(output_path):
+                print(f"SKIPPING (result exists): {output_path}")
+                continue
             commands.append(
                 base_script + [
                     "--inject_knowledge",
@@ -33,6 +54,10 @@ def generate_commands(args):
         print("Generating '--method all' evaluation commands...")
         # This specifically targets scope=1 as per your requirement
         for task, model in itertools.product(args.task_names, args.model_names):
+            output_path = get_output_file_path(task, model, inject_knowledge=True, method='all', scope=1)
+            if not args.overwrite and os.path.exists(output_path):
+                print(f"SKIPPING (result exists): {output_path}")
+                continue
             commands.append(
                 base_script + [
                     "--inject_knowledge",
@@ -57,6 +82,7 @@ if __name__ == "__main__":
     parser.add_argument('--no-base-eval', action='store_false', dest='run_base_eval', help='Do not run base evaluations.')
     parser.add_argument('--no-inject-eval', action='store_false', dest='run_inject_eval', help='Do not run knowledge injection evaluations.')
     parser.add_argument('--no-method-all-eval', action='store_false', dest='run_method_all_eval', help='Do not run --method all evaluations.')
+    parser.add_argument('--overwrite', action='store_true', help='Force run all commands, overwriting existing results.')
     
     # --- Knowledge Injection Specifics ---
     parser.add_argument('--knowledge_aggregation_scopes', nargs='+', type=int, default=[1, 10, 100], help='List of knowledge aggregation scopes.')
