@@ -271,33 +271,46 @@ def task_func(dealer_sales_data):
         subquestions = response.split("\n")
         return [s.strip() for s in subquestions if s.strip().endswith("?")]
     
-    def generate_subanswer(self, subquestion, retrieved_fact):
+    def generate_subanswer(self, subquestion, retrieved_fact=""):
         """
         Answer the subquestion (str) by using the retrieved fact if it is relevant, otherwise answer it in a freeform way.
         """
-        user_prompt_relevance = f"You are given a question and a retrieved fact. Does the retrieved fact contain relevant information to answer the question? Answer \"Yes\" or \"No\" with a brief explanation.\nQuestion:\n{subquestion}\nRetrieved Fact:\n{retrieved_fact}\nRelevance:"
-        self.chat_response_generator.update_chat_history([
-            ("system", "You are given a question and a retrieved fact. Does the retrieved fact contain relevant information to answer the question?"),
-        ])
-        response = self.chat_response_generator.generate_response(
-            user_prompt_relevance,
-            temperature=self.args.temperature,
-            top_p=self.args.top_p,
-            n=1,
-            max_tokens=64,
-        )[0].replace("Relevance:", "").strip()
-        if "yes" in response.lower():
+        if retrieved_fact != "":
+            user_prompt_relevance = f"You are given a question and a retrieved fact. Does the retrieved fact contain relevant information to answer the question? Answer \"Yes\" or \"No\" with a brief explanation.\nQuestion:\n{subquestion}\nRetrieved Fact:\n{retrieved_fact}\nRelevance:"
             self.chat_response_generator.update_chat_history([
-                ("system", "You are given a question and a relevant fact. Answer the question in one sentence with the relevant fact."),
+                ("system", "You are given a question and a retrieved fact. Does the retrieved fact contain relevant information to answer the question?"),
             ])
-            user_prompt_question = f"You are given a question and a relevant fact. Answer the question in one sentence with the relevant fact.\nQuestion:\n{subquestion}\nRelevant Fact:\n{retrieved_fact}\nAnswer:"
-            answer = self.chat_response_generator.generate_response(
-                user_prompt_question,
+            response = self.chat_response_generator.generate_response(
+                user_prompt_relevance,
                 temperature=self.args.temperature,
                 top_p=self.args.top_p,
                 n=1,
-                max_tokens=128,
-            )[0].replace("Answer:", "").strip()
+                max_tokens=64,
+            )[0].replace("Relevance:", "").strip()
+            if "yes" in response.lower():
+                self.chat_response_generator.update_chat_history([
+                    ("system", "You are given a question and a relevant fact. Answer the question in one sentence with the relevant fact."),
+                ])
+                user_prompt_question = f"You are given a question and a relevant fact. Answer the question in one sentence with the relevant fact.\nQuestion:\n{subquestion}\nRelevant Fact:\n{retrieved_fact}\nAnswer:"
+                answer = self.chat_response_generator.generate_response(
+                    user_prompt_question,
+                    temperature=self.args.temperature,
+                    top_p=self.args.top_p,
+                    n=1,
+                    max_tokens=128,
+                )[0].replace("Answer:", "").strip()
+            else:
+                self.chat_response_generator.update_chat_history([
+                    ("system", "You are given a question. Answer the question in one sentence with your knowledge."),
+                ])
+                user_prompt_question = f"You are given a question. Answer the question in one sentence with your knowledge.\nQuestion:\n{subquestion}\nAnswer:"
+                answer = self.chat_response_generator.generate_response(
+                    user_prompt_question,
+                    temperature=self.args.temperature,
+                    top_p=self.args.top_p,
+                    n=1,
+                    max_tokens=128,
+                )[0].replace("Answer:", "").strip()
         else:
             self.chat_response_generator.update_chat_history([
                 ("system", "You are given a question. Answer the question in one sentence with your knowledge."),
@@ -325,13 +338,19 @@ def task_func(dealer_sales_data):
         # 1. Decompose the multihop question to subquestions
         subquestions = self.decompose_question(multihop_question)
         # 2. For each subquestion, retrieve a most relevant fact and use it to answer the question if relevant
-        embs = self.get_sent_embeddings(knowledge_to_inject)
         knowledge_to_inject_str = ""
-        for subquestion in subquestions:
-            knowledge_to_inject_str += f"Subquestion: {subquestion}\n"
-            retrieved_fact = knowledge_to_inject[self.retrieve_facts(subquestion, embs)[0]]
-            answer = self.generate_subanswer(subquestion, retrieved_fact)
-            knowledge_to_inject_str += f"Generated Answer: {answer}\n"
+        if knowledge_to_inject != []:
+            embs = self.get_sent_embeddings(knowledge_to_inject)
+            for subquestion in subquestions:
+                knowledge_to_inject_str += f"Subquestion: {subquestion}\n"
+                retrieved_fact = knowledge_to_inject[self.retrieve_facts(subquestion, embs)[0]]
+                answer = self.generate_subanswer(subquestion, retrieved_fact)
+                knowledge_to_inject_str += f"Generated Answer: {answer}\n"
+        else:
+            for subquestion in subquestions:
+                knowledge_to_inject_str += f"Subquestion: {subquestion}\n"
+                answer = self.generate_subanswer(subquestion, "")
+                knowledge_to_inject_str += f"Generated Answer: {answer}\n"
             
         return knowledge_to_inject_str.strip()
     
