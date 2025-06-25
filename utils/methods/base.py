@@ -202,6 +202,7 @@ def task_func(dealer_sales_data):
             usage (dict): A dictionary containing the token usage information for the model.
         """
         
+        knowledge_to_inject = [k['knowledge'] for k in knowledge_to_inject]
         knowledge_to_inject_str = " ".join(knowledge_to_inject)
         prepared_user_prompt, prepared_system_prompt = self.prepare_input(self, item, knowledge_to_inject_str)
         
