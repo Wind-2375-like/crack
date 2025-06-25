@@ -35,31 +35,46 @@ def parse_args():
     parser.add_argument('--num_responses', type=int, default=1, help="Number of responses to generate")
     return parser.parse_args()
 
-def extract_required_unknown_knowledge(items_list):
+def extract_required_unknown_knowledge(items_list, raw_items):
     """
     Helper to extract unique knowledge strings from a list of items,
     where 'knowledgable' is False.
     """
-    unknown_knowledge_set = set()
-    for an_item in items_list:
-        for k_entry in an_item.get('required_knowledge', []):
-            # Check if 'knowledgable' is False and 'knowledge' string exists and is not empty
-            if not k_entry.get('knowledgable', True) and k_entry.get('knowledge'):
-                unknown_knowledge_set.add(k_entry['knowledge'])
-    return list(unknown_knowledge_set)
+    seen_knowledge = set()
+    unknown_knowledge_list = []
+    for i, an_item in enumerate(items_list):
+        for j, k_entry in enumerate(an_item.get('required_knowledge', [])):
+            knowledge_str = k_entry.get('knowledge')
+            if not k_entry.get('knowledgable', True) and knowledge_str and knowledge_str not in seen_knowledge:
+                seen_knowledge.add(knowledge_str)
+                unknown_knowledge_list.append({
+                    'knowledge': k_entry['knowledge'],
+                    'knowledgable': k_entry['knowledgable'],
+                    'knowledge_confidence': k_entry['knowledge_confidence'],
+                    'probe_question': raw_items[i]['probe_questions'][j]['question'],
+                    'probe_answer': raw_items[i]['probe_questions'][j]['answer'],
+                })
+    return unknown_knowledge_list
     
-def extract_all_required_knowledge(items_list):
+def extract_all_required_knowledge(items_list, raw_items):
     """
     Helper to extract unique knowledge strings from a list of items,
     where 'knowledgable' is False.
     """
-    all_knowledge_set = set()
-    for an_item in items_list:
-        for k_entry in an_item.get('required_knowledge', []):
-            # Check if 'knowledgable' is False and 'knowledge' string exists and is not empty
-            if k_entry.get('knowledge'):
-                all_knowledge_set.add(k_entry['knowledge'])
-    return list(all_knowledge_set)
+    seen_knowledge = set()
+    all_knowledge_list = []
+    for i, an_item in enumerate(items_list):
+        for j, k_entry in enumerate(an_item.get('required_knowledge', [])):
+            knowledge_str = k_entry.get('knowledge')
+            if not k_entry.get('knowledgable', True) and knowledge_str and knowledge_str not in seen_knowledge:
+                all_knowledge_list.add({
+                    'knowledge': k_entry['knowledge'],
+                    'knowledgable': k_entry['knowledgable'],
+                    'knowledge_confidence': k_entry['knowledge_confidence'],
+                    'probe_question': raw_items[i]['probe_questions'][j]['question'],
+                    'probe_answer': raw_items[i]['probe_questions'][j]['answer'],
+                })
+    return all_knowledge_list
 
 def update_pbar(processed_item, usage, processed_data_list, token_counts_dict, pbar_instance, model_name_str): # Renamed from _process_and_update_results
     """Helper to update token counts, append data, and refresh progress bar."""
@@ -81,6 +96,9 @@ if __name__ == "__main__":
         raw_path=f'data/{args.task_name}/test_{args.data_size}_depth_{args.depth}.pkl',
         probe_path=f'data/eval_results/{args.task_name}/probe_evaluated/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl',
     )
+    
+    with open(f'data/{args.task_name}/test_{args.data_size}_depth_{args.depth}.pkl', "rb") as f:
+        raw_dataset = pickle.load(f)
     
     with open(args.api_config_file, 'r') as f:
         api_config = json.load(f)
@@ -130,10 +148,11 @@ if __name__ == "__main__":
                 
                 # Items from which knowledge is extracted for the current conceptual group
                 items_for_knowledge_extraction = all_items_list[group_start_idx:group_end_idx]
+                raw_items = raw_dataset[group_start_idx:group_end_idx]
                 if args.method != "all":
-                    current_knowledge_to_inject = extract_required_unknown_knowledge(items_for_knowledge_extraction)
+                    current_knowledge_to_inject = extract_required_unknown_knowledge(items_for_knowledge_extraction, raw_items)
                 else:
-                    current_knowledge_to_inject = extract_all_required_knowledge(items_for_knowledge_extraction)
+                    current_knowledge_to_inject = extract_all_required_knowledge(items_for_knowledge_extraction, raw_items)
                 
                 # Process each item within this conceptual group using the extracted knowledge
                 # The items_for_knowledge_extraction list itself contains the items to process for this group
