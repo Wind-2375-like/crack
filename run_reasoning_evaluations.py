@@ -43,6 +43,7 @@ def generate_commands(args):
                 base_script + [
                     "--inject_knowledge",
                     "--knowledge_aggregation_scope", str(scope),
+                    "--method", method,
                     "--task_name", task,
                     "--model_name", model
                 ]
