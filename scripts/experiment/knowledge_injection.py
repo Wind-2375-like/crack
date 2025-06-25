@@ -66,7 +66,7 @@ def extract_all_required_knowledge(items_list, raw_items):
     for i, an_item in enumerate(items_list):
         for j, k_entry in enumerate(an_item.get('required_knowledge', [])):
             knowledge_str = k_entry.get('knowledge')
-            if not k_entry.get('knowledgable', True) and knowledge_str and knowledge_str not in seen_knowledge:
+            if knowledge_str and knowledge_str not in seen_knowledge:
                 all_knowledge_list.append({
                     'knowledge': k_entry['knowledge'],
                     'knowledgable': k_entry['knowledgable'],
