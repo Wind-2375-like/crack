@@ -1,6 +1,7 @@
 from .root_method import RootExperimentMethod
 from transformers import AutoTokenizer, AutoModel
 import torch
+import re
 
 class Method(RootExperimentMethod):
     """
@@ -10,6 +11,7 @@ class Method(RootExperimentMethod):
         super().__init__(args, chat_response_generator)
         self.rag_contriever = AutoModel.from_pretrained("facebook/contriever-msmarco").cuda()
         self.rag_tokenizer = AutoTokenizer.from_pretrained("facebook/contriever-msmarco")
+        self.stop_phrase = "I have enough information."
         
     def mean_pooling(self, token_embeddings, mask):
         token_embeddings = token_embeddings.masked_fill(~mask[..., None].bool(), 0.)
@@ -243,86 +245,231 @@ def task_func(dealer_sales_data):
 
         return prepared_user_prompt, prepared_system_prompt
     
-    def decompose_question(self, question):
+    def decompose_question(self, question, history=""):
         """
-        Decompose a question (str) to a list of subquestions (list)
+        Decomposes a question using a task-specific, strict, pattern-matching prompt
+        to force the model to generate a single-line subquestion.
         """
-        system_prompt = (
-            "You are given a question. To answer the question, what subquestions would you ask? Provide all subquestions ONLY (around 4 questions). Each in one line.\n"
-            "[Here is one demonstration]\n"
-            "Question:\nThree pencils and a jumbo eraser cost $1.24. Five pencils and a jumbo eraser cost $1.82. No prices include tax. In cents, what is the cost of a pencil?\n"
-            "Subquestions:\n"
-            "Three pencils and a jumbo eraser cost $1.24. Five pencils and a jumbo eraser cost $1.82. No prices include tax. If 'p' is the price of a pencil and 'e' is the price of an eraser, what two equations do we have?\n"
-            "Given the equations $3p+e=1.24$ and $5p+e=1.82$, what specific operation will eliminate the variable 'e'?\n"
-            "After subtracting $3p+e=1.24$ from $5p+e=1.82$, what is the resulting value for p?\n"
-            "How can we convert a monetary value from dollars to cents?"
-        )
-        user_prompt = f"You are given a question. To answer the question, what subquestions would you ask? Provide all subquestions ONLY (around 4 questions). Each in one line.\nQuestion:\n{question}\nSubquestions:\n"
+        
+        # 1. Select the system prompt WITH EXAMPLES based on the task_name.
+        # This restores the critical task-specific logic.
+        system_prompt = ""
+        if self.args.task_name == "grow":
+            system_prompt = """You are a machine that expertly breaks down complex reasoning questions. Your task is to produce only the VERY NEXT single-line subquestion needed to solve the main question. You MUST use the information based on the answers to the subquestions in the history provided (e.g., substitute entities, use previous answers, etc.). Do not add any extra text or explanation.
+
+### EXAMPLES ###
+
+[Input]
+Main Question: 
+What is the capital city of the country of citizenship of Ivanka Trump's spouse?
+History:
+None
+[Next Subquestion]
+Who is Ivanka Trump's spouse?
+
+[Input]
+Main Question: 
+What is the capital city of the country of citizenship of Ivanka Trump's spouse?
+History:
+Subquestion: 
+Who is Ivanka Trump's spouse?
+Generated Answer: 
+Ivanka Trump's spouse is Jared Kushner.
+[Next Subquestion]
+What is the country of citizenship of Jared Kushner?
+
+[Input]
+Main Question: 
+What is the capital city of the country of citizenship of Ivanka Trump's spouse?
+History:
+Subquestion: 
+Who is Ivanka Trump's spouse?
+Generated Answer: 
+Ivanka Trump's spouse is Jared Kushner.
+Subquestion: 
+What is the country of citizenship of Jared Kushner?
+Generated Answer: 
+Jared Kushner is a citizen of the United States.
+[Next Subquestion]
+What is the capital city of the United States?
+"""
+        elif self.args.task_name == "math":
+            system_prompt = """You are a machine that expertly breaks down complex reasoning questions. Your task is to produce only the VERY NEXT single-line subquestion needed to solve the main question. You MUST use the information based on the answers to the subquestions in the history provided (e.g., substitute values or math equations, use previous answers, etc.). Do not add any extra text or explanation.
+
+### EXAMPLES ###
+
+[Input]
+Main Question: 
+Three pencils and a jumbo eraser cost $1.24. Five pencils and a jumbo eraser cost $1.82. In cents, what is the cost of a pencil?
+History:
+None
+[Next Subquestion]
+If 'p' is the price of a pencil and 'e' is the price of an eraser, what two equations can we form from the problem statement?
+
+[Input]
+Main Question: 
+Three pencils and a jumbo eraser cost $1.24. Five pencils and a jumbo eraser cost $1.82. In cents, what is the cost of a pencil?
+History:
+Subquestion: 
+If 'p' is the price of a pencil and 'e' is the price of an eraser, what two equations can we form from the problem statement?
+Generated Answer: 
+The two equations are $3p+e=1.24$ and $5p+e=1.82$.
+[Next Subquestion]
+Given the equations $3p+e=1.24$ and $5p+e=1.82$, what specific operation will eliminate the variable 'e'?
+
+[Input]
+Main Question: 
+Three pencils and a jumbo eraser cost $1.24. Five pencils and a jumbo eraser cost $1.82. In cents, what is the cost of a pencil?
+History:
+Subquestion: 
+If 'p' is the price of a pencil and 'e' is the price of an eraser, what two equations can we form from the problem statement?
+Generated Answer: 
+The two equations are $3p+e=1.24$ and $5p+e=1.82$.
+Subquestion:
+Given the equations $3p+e=1.24$ and $5p+e=1.82$, what specific operation will eliminate the variable 'e'?
+Generated Answer:
+Subtracting the first equation from the second will eliminate the variable 'e'.
+[Next Subquestion]
+After subtracting $3p+e=1.24$ from $5p+e=1.82$, what is the resulting value for p?
+"""
+        elif self.args.task_name == "code":
+            system_prompt = """You are a machine that expertly breaks down complex reasoning questions. Your task is to produce only the VERY NEXT single-line subquestion needed to solve the main question. You MUST use the information based on the answers to the subquestions in the history provided (e.g., substitute external APIs, use previous answers, etc.). Do not add any extra text or explanation.
+
+### EXAMPLES ###
+
+[Input]
+Main Question: 
+Compute and return the IDs of the best-selling cars from `dealer_sales_data`, a list of dictionaries...
+History:
+None
+[Next Subquestion]
+How can we convert the input list of dictionaries, `dealer_sales_data`, into a pandas DataFrame?
+
+[Input]
+Main Question: 
+Compute and return the IDs of the best-selling cars from `dealer_sales_data`, a list of dictionaries...
+History:
+Subquestion: 
+How can we convert the input list of dictionaries, `dealer_sales_data`, into a pandas DataFrame?
+Generated Answer: 
+To create the dataframe, we can use `df = pd.DataFrame(dealer_sales_data)`.
+[Next Subquestion]
+After creating the DataFrame, how can we find the maximum value in the 'num_sold' column?
+
+[Input]
+Main Question: 
+Compute and return the IDs of the best-selling cars from `dealer_sales_data`, a list of dictionaries...
+History:
+Subquestion: 
+How can we convert the input list of dictionaries, `dealer_sales_data`, into a pandas DataFrame?
+Generated Answer: 
+To create the dataframe, we can use `df = pd.DataFrame(dealer_sales_data)`.
+Subquestion:
+After creating the DataFrame, how can we find the maximum value in the 'num_sold' column?
+Generated Answer:
+To find the maximum value in the 'num_sold' column, we can use `df['num_sold'].max()`.
+[Next Subquestion]
+How can we filter the DataFrame to get only the rows where 'num_sold' equals the maximum value found in the previous step?
+"""
+
+        system_prompt += "\n### END EXAMPLES ###\n\nYou will now receive the real task. Follow the format of the examples exactly. Provide the output."
+
+        history_str = history.strip() if history else 'None'
+        user_prompt = f"""[Input]
+Main Question: 
+{question}
+History:
+{history_str}
+[Next Subquestion]
+"""
+
         self.chat_response_generator.update_chat_history([
-            ("system", system_prompt),
+            ("system", system_prompt)
         ])
+        
+        # We expect a multi-line response, so we REMOVE stop=["\n"]
         response = self.chat_response_generator.generate_response(
             user_prompt,
-            temperature=self.args.temperature,
-            top_p=self.args.top_p,
+            temperature=0.01,
+            top_p=1,
             n=1,
-            max_tokens=self.args.max_tokens,
-        )[0].replace("Subquestions:", "").strip()
-        subquestions = response.split("\n")
-        return [s.strip() for s in subquestions if s.strip().endswith("?")]
+            max_tokens=256, # Increased max_tokens to allow for the thought process
+        )[0].strip()
+
+        # --- NEW FLEXIBLE PARSING LOGIC ---
+        # The model might be smart and skip the CoT format. We need to handle this.
+
+        # 1. First, try to find the [Next Subquestion] tag, assuming the model followed instructions perfectly.
+        match = re.search(r'\[Next Subquestion\]\s*(.*)', response, re.DOTALL)
+        if match:
+            # It worked! Extract the subquestion from the tag.
+            subquestion = match.group(1).strip().split('\n')[0]
+            # print(f"DEBUG: Parsed using [Next Subquestion] tag.")
+            return subquestion
+
+        # 2. If no [Next Subquestion] tag is found, check if the *entire response* is a valid, single-line question.
+        # This handles the new, more direct behavior.
+        if '?' in response and '\n' not in response:
+            # print(f"DEBUG: Parsed directly. Model skipped CoT format.")
+            return response
+
+        # 3. If neither of the above worked, the model has failed in a new way.
+        # print(f"DEBUG: Failed to parse response. Full response: {response}")
+        return None
     
-    def generate_subanswer(self, subquestion, retrieved_fact=""):
+    def generate_subanswer(self, main_question, history, subquestion, retrieved_fact=""):
         """
         Answer the subquestion (str) by using the retrieved fact if it is relevant, otherwise answer it in a freeform way.
         """
-        if retrieved_fact != "":
-            user_prompt_relevance = f"You are given a question and a retrieved fact. Does the retrieved fact contain relevant information to answer the question? Answer \"Yes\" or \"No\" with a brief explanation.\nQuestion:\n{subquestion}\nRetrieved Fact:\n{retrieved_fact}\nRelevance:"
+        is_relevant = False
+        if retrieved_fact:
+            
+            relevance_system_prompt = "You are a strict relevance judge. Your task is to determine if a 'Fact' provides a direct answer to a 'Question'. Answer with \"Yes\" or \"No\" and explanations."
+            
+            relevance_user_prompt = f"""[Question]
+{subquestion}
+
+[Fact]
+{retrieved_fact}
+
+[Decision]
+Does the 'Fact' directly answer the 'Question'? Answer with "Yes" or "No" and explanations.
+Answer:"""
+
             self.chat_response_generator.update_chat_history([
-                ("system", "You are given a question and a retrieved fact. Does the retrieved fact contain relevant information to answer the question?"),
+                ("system", relevance_system_prompt),
             ])
-            response = self.chat_response_generator.generate_response(
-                user_prompt_relevance,
-                temperature=self.args.temperature,
-                top_p=self.args.top_p,
+            
+            relevance_response = self.chat_response_generator.generate_response(
+                relevance_user_prompt, 
+                temperature=0.01,
+                top_p=1,
                 n=1,
                 max_tokens=64,
-            )[0].replace("Relevance:", "").strip()
-            if "yes" in response.lower():
-                self.chat_response_generator.update_chat_history([
-                    ("system", "You are given a question and a relevant fact. Answer the question in one sentence with the relevant fact."),
-                ])
-                user_prompt_question = f"You are given a question and a relevant fact. Answer the question in one sentence with the relevant fact.\nQuestion:\n{subquestion}\nRelevant Fact:\n{retrieved_fact}\nAnswer:"
-                answer = self.chat_response_generator.generate_response(
-                    user_prompt_question,
-                    temperature=self.args.temperature,
-                    top_p=self.args.top_p,
-                    n=1,
-                    max_tokens=128,
-                )[0].replace("Answer:", "").strip()
-            else:
-                self.chat_response_generator.update_chat_history([
-                    ("system", "You are given a question. Answer the question in one sentence with your knowledge."),
-                ])
-                user_prompt_question = f"You are given a question. Answer the question in one sentence with your knowledge.\nQuestion:\n{subquestion}\nAnswer:"
-                answer = self.chat_response_generator.generate_response(
-                    user_prompt_question,
-                    temperature=self.args.temperature,
-                    top_p=self.args.top_p,
-                    n=1,
-                    max_tokens=128,
-                )[0].replace("Answer:", "").strip()
+                stop=["\n"] # Stop after the first word.
+            )[0].strip()
+
+            if "yes" in relevance_response.lower():
+                is_relevant = True
+                
+        if is_relevant:
+            system_prompt = "You are a helpful assistant. From the provided fact, answer the given subquestion as concisely as possible."
+            user_prompt = f"Subquestion: {subquestion}\nRelevant Fact: {retrieved_fact}\n\nFrom the provided fact, answer the given subquestion as concisely as possible.\nAnswer:"
         else:
-            self.chat_response_generator.update_chat_history([
-                ("system", "You are given a question. Answer the question in one sentence with your knowledge."),
-            ])
-            user_prompt_question = f"You are given a question. Answer the question in one sentence with your knowledge.\nQuestion:\n{subquestion}\nAnswer:"
-            answer = self.chat_response_generator.generate_response(
-                user_prompt_question,
-                temperature=self.args.temperature,
-                top_p=self.args.top_p,
-                n=1,
-                max_tokens=128,
-            )[0].replace("Answer:", "").strip()
+            # If not relevant, answer from general knowledge, but still be concise.
+            system_prompt = "You are a helpful assistant. Answer the given subquestion as concisely as possible."
+            user_prompt = f"Subquestion: {subquestion}\n\nAnswer the given subquestion as concisely as possible.\nAnswer:"
+        
+        # Generate the final, concise answer.
+        self.chat_response_generator.update_chat_history([("system", system_prompt)])
+        answer = self.chat_response_generator.generate_response(
+            user_prompt,
+            temperature=0.01,
+            top_p=1,
+            n=1,
+            max_tokens=64, # A concise answer should be short
+        )[0].replace("Answer:", "").strip()
+        
         return answer
     
     def postprocess_knowledge(self, item, knowledge_to_inject):
@@ -335,22 +482,31 @@ def task_func(dealer_sales_data):
             knowledge_to_inject (list): Pre-formatted string of knowledge to inject.
         """
         multihop_question = item['question']
-        # 1. Decompose the multihop question to subquestions
-        subquestions = self.decompose_question(multihop_question)
-        # 2. For each subquestion, retrieve a most relevant fact and use it to answer the question if relevant
         knowledge_to_inject_str = ""
-        if knowledge_to_inject != []:
-            embs = self.get_sent_embeddings(knowledge_to_inject)
-            for subquestion in subquestions:
-                knowledge_to_inject_str += f"Subquestion: {subquestion}\n"
+        history = ""
+        max_subquestions = 5
+        embs = self.get_sent_embeddings(knowledge_to_inject) if knowledge_to_inject else None
+        
+        for _ in range(max_subquestions):
+            # 1. Decompose the multihop question to subquestions
+            subquestion = self.decompose_question(multihop_question, history)
+            
+            # 2. Check the early stopping
+            if subquestion is None:
+                break
+            
+            # 3. For each subquestion, retrieve a most relevant fact and use it to answer the question if relevant
+            knowledge_to_inject_str += f"Subquestion: {subquestion}\n"
+            retrieved_fact = ""
+            if knowledge_to_inject and embs is not None:
                 retrieved_fact = knowledge_to_inject[self.retrieve_facts(subquestion, embs)[0]]
-                answer = self.generate_subanswer(subquestion, retrieved_fact)
-                knowledge_to_inject_str += f"Generated Answer: {answer}\n"
-        else:
-            for subquestion in subquestions:
-                knowledge_to_inject_str += f"Subquestion: {subquestion}\n"
-                answer = self.generate_subanswer(subquestion, "")
-                knowledge_to_inject_str += f"Generated Answer: {answer}\n"
+                
+            # 4. Generate an answer for the current subquestion
+            answer = self.generate_subanswer(multihop_question, history, subquestion, retrieved_fact)
+            knowledge_to_inject_str += f"Generated Answer: {answer}\n"
+            
+            # 5. Update the history for the next iteration
+            history += f"Subquestion: {subquestion}\nGenerated Answer: {answer}\n"
             
         return knowledge_to_inject_str.strip()
     
