@@ -44,7 +44,7 @@ def run_command(command, max_retries=10, retry_delay_minutes=10, log_dir="logs")
     
     # 2. Create a more descriptive and predictable log file name
     log_file_name_parts = [experiment_type]
-    for flag in ['--task_name', '--model_name', '--method']:
+    for flag in ['--inject_knowledge', '--task_name', '--model_name', '--method', '--knowledge_aggregation_scope']:
         try:
             index = command.index(flag)
             log_file_name_parts.append(command[index + 1])
