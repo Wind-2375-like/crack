@@ -269,6 +269,7 @@ PROBE_TEMPLATES = {
     'P449': {'question': 'Who is the original broadcaster of [S]?', 'cloze': 'The original broadcaster of [S] is ___.', 'attributive': 'the original broadcaster of [S]'},
     'P176': {'question': 'Which company is [S] produced by?', 'cloze': 'The company that produced [S] is ___.', 'attributive': 'the company that produced [S]'},
     'P1037': {'question': 'Who is the director of [S]?', 'cloze': 'The director of [S] is ___.', 'attributive': 'the director of [S]'},
+    'P39': {'question': 'What position is held by [S]?', 'cloze': 'The position held by [S] is ___.', 'attributive': 'the position held by [S]'}
 }
 
 
