@@ -267,8 +267,8 @@ def task_func(dealer_sales_data):
         training_args = TrainingArguments(
             output_dir="logs/",
             per_device_train_batch_size=1,
-            num_train_epochs=20,
-            learning_rate=2e-4,
+            num_train_epochs=4,
+            learning_rate=2e-3,
             fp16=True,
             save_strategy="no",
             gradient_checkpointing=True,
