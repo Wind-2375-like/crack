@@ -49,7 +49,7 @@ def get_hparams_for_model(model_name: str):
             mlp_module_tmp="model.layers.{}.mlp",
             layers=[9], # Corrected from 10 to 9 for 0-based index
             fact_token="subject_last",
-            v_num_grad_steps=50,
+            v_num_grad_steps=20,
             v_lr=0.5,
             v_loss_layer=27, # Last layer of the model
             v_weight_decay=0.5,
@@ -65,7 +65,7 @@ def get_hparams_for_model(model_name: str):
             mlp_module_tmp="model.layers.{}.mlp",
             layers=[5], # Corrected from 6 to 5 for 0-based index
             fact_token="subject_last",
-            v_num_grad_steps=50,
+            v_num_grad_steps=20,
             v_lr=0.5,
             v_loss_layer=27, # Last layer of the model
             v_weight_decay=0.5,
@@ -81,7 +81,7 @@ def get_hparams_for_model(model_name: str):
             mlp_module_tmp="model.layers.{}.mlp",
             layers=[10], # Corrected from 11 to 10 for 0-based index
             fact_token="subject_last",
-            v_num_grad_steps=50,
+            v_num_grad_steps=20,
             v_lr=0.5,
             v_loss_layer=35, # Last layer of the model
             v_weight_decay=0.5,
