@@ -272,10 +272,9 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="Process a chain of triples.")
     parser.add_argument('--data_size', type=int, default=100, help="Number of triples to process")
-    parser.add_argument('--depth', type=int, default=4, help="Depth of the chain")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
     parser.add_argument('--model_name', type=str, default="llama-3.2-3b", help="Model name for the API")
-    parser.add_argument('--evaluate_model_name', type=str, default="gpt-4.1-mini", help="Model name for the evaluation")
+    parser.add_argument('--evaluate_model_name', type=str, default="gpt-5-mini-2025-08-07", help="Model name for the evaluation")
     parser.add_argument('--task_name', type=str, default="grow", help="Task name")
     parser.add_argument('--inject_knowledge', action='store_true', help="Whether to inject knowledge into the input")
     parser.add_argument('--knowledge_aggregation_scope', type=int, default=1, help="Scope for aggregating 'unknown' knowledge. Must be >= 1. 1: item-specific. N (e.g., 10, 100): group of N items.")
@@ -514,19 +513,19 @@ if __name__ == "__main__":
         
     # Define input and output paths
     input_file_dir = f'data/eval_results/{args.task_name}/injection/'
-    input_file_name = f"{'original' if not args.inject_knowledge else args.method}_{args.data_size}_depth_{args.depth}_{args.model_name}_{args.knowledge_aggregation_scope}.pkl"
+    input_file_name = f"{'original' if not args.inject_knowledge else args.method}_{args.data_size}_{args.model_name}_{args.knowledge_aggregation_scope}.pkl"
     input_file_path = os.path.join(input_file_dir, input_file_name)
 
     output_dir_base = f'data/eval_results/{args.task_name}/injection_evaluated/'
     os.makedirs(output_dir_base, exist_ok=True)
-    output_file_name = f"{'original' if not args.inject_knowledge else args.method}_{args.data_size}_depth_{args.depth}_{args.model_name}_{args.knowledge_aggregation_scope}.pkl"
+    output_file_name = f"{'original' if not args.inject_knowledge else args.method}_{args.data_size}_{args.model_name}_{args.knowledge_aggregation_scope}.pkl"
     output_file_path = os.path.join(output_dir_base, output_file_name)
 
     # Load the chains from a pickle file
     with open(input_file_path, 'rb') as f:
         eval_dataset = pickle.load(f)
         
-    with open(f'data/{args.task_name}/test_{args.data_size}_depth_{args.depth}.pkl', "rb") as f:
+    with open(f'data/{args.task_name}/test_{args.data_size}.pkl', "rb") as f:
         raw_dataset = pickle.load(f)
         
     # Process all chains

@@ -123,6 +123,36 @@ def task_func(dealer_sales_data):
 
         return prepared_user_prompt, prepared_system_prompt
     
+    def prepare_probe_input(self, item):
+        """
+        Prepares the input for the model.
+        Args:
+            item (dict): A dictionary containing:
+                - "id": index of the question
+                - "question": the question text
+                - "answer": the answer text
+                - "required_knowledge": the list of required knowledge
+            knowledge_to_inject_str (str, optional): Pre-formatted string of knowledge to inject. Defaults to "".
+        Returns:
+            tuple: A tuple containing:
+                - prepared_user_prompt (str): The user prompt for the model.
+                - prepared_system_prompt (str): The system prompt for the model.
+        """
+        
+        if self.args.task_name == "grow":
+            prepared_system_prompt = "Answer the question with the name of an entity. Provide only the name of the entity as your answer. Please make an educated guess and always return an entity.\n\n[Here is one demonstration]\n\nUser:\nWho is the developer of Telegram?\n\nAssistant:\nTelegram FZ-LLC"
+            prepared_user_prompt = f"User:\n{item['question']}\nAssistant:\n"
+        elif self.args.task_name == "code":
+            prepared_system_prompt = "Answer the question with a Python code snippet, which requires ONLY ONE direct function or class constructor call from ONLY ONE library.\nProvide ONLY ONE function or constructor call itself with correct positional arguments.\n- Do NOT include import statements.\n- Do NOT include example data, variable assignments, or any other code.\n- For each keyword argument of the function, if the question implies specific keyword arguments, include them in the function call. If the question does not require the keyword argument explicitly or only require it with its default value, the function can be called without this keyword argument.\n- Please make an educated guess and always return a function call.\n\n[Here is one demonstration]\n\nUser:\nGiven the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?\n\nAssistant:\n```python\npandas.DataFrame(data)\n```"
+            prepared_user_prompt = f"User:\n{item['question']}\nAssistant:\n"
+        elif self.args.task_name == "math":
+            prepared_system_prompt = "Answer the math question with a concise sentence. Provide only the direct answer to the math question and no more additional reasoning.\n\n[Here is one demonstration]\n\nUser:\nGiven the equations $3p+e=1.24$ and $5p+e=1.82$, what specific operation will eliminate the variable 'e'?\n\nAssistant:\nSubtracting the first equation from the second will eliminate the variable 'e'."
+            prepared_user_prompt = f"User:\n{item['question']}\nAssistant:\n"
+        else:
+            raise NotImplementedError(f"Task {self.args.task_name} is not implemented.")
+
+        return prepared_user_prompt, prepared_system_prompt
+    
     def apply_rome_to_model(self, knowledge_to_inject=[], all_knowledge_list=None, cache_key=None):
         """
         Update the model (self.chat_response_generator) with injected knowledge
@@ -200,8 +230,35 @@ def task_func(dealer_sales_data):
                 "Update matrix computed by ROME does not match original weight shape. "
                 "Check for bugs in the code?"
             )
+            
+    def edit(self, knowledge_to_inject):
+        self.original_model_state_dict = deepcopy(self.chat_response_generator.client.handler.pipeline.model.state_dict())
+        
+        # Use ROME to inject knowledge
+        if self.args.inject_knowledge and knowledge_to_inject != []:
+            eval_dataset = list(ReasoningEvalDataset(
+                raw_path=f'data/{self.args.task_name}/test_{self.args.data_size}.pkl',
+                probe_path=f'data/eval_results/{self.args.task_name}/probe_evaluated/test_{self.args.data_size}_{self.args.model_name}.pkl',
+            ))
+            
+            with open(f'data/{self.args.task_name}/test_{self.args.data_size}.pkl', "rb") as f:
+                raw_dataset = pickle.load(f)
+                
+            # Extract all required knowledge from the dataset
+            all_knowledge_list = extract_all_required_knowledge(eval_dataset, raw_dataset)
+            cache_key = f"{self.args.model_name.replace('/', '_')}_{self.args.task_name}_{self.args.data_size}"
+            self.apply_rome_to_model(knowledge_to_inject, all_knowledge_list, cache_key)
+
+    def restore(self):
+        # Restore the model from the saved state
+        usage = self.chat_response_generator.get_usage()
+        if self.original_model_state:
+            self.chat_response_generator.client.handler.pipeline.model.load_state_dict(self.original_model_state)
+            self.original_model_state = None # Clear the state
+            torch.cuda.empty_cache()
+        self.chat_response_generator._usage = usage
     
-    def run(self, item, knowledge_to_inject=[]):
+    def run(self, item, knowledge_to_inject=[], probe=False):
         """
         Probes a chain of triples using the specified model.
         Args:
@@ -210,44 +267,38 @@ def task_func(dealer_sales_data):
         Returns:
             item (dict): The updated item with model_response.
             usage (dict): A dictionary containing the token usage information for the model.
-        """
-        # Preserve the original model
-        original_model_state_dict = deepcopy(self.chat_response_generator.client.handler.pipeline.model.state_dict())
-        
-        # Use ROME to inject knowledge
-        if self.args.inject_knowledge and knowledge_to_inject != []:
-            eval_dataset = list(ReasoningEvalDataset(
-                raw_path=f'data/{self.args.task_name}/test_{self.args.data_size}_depth_{self.args.depth}.pkl',
-                probe_path=f'data/eval_results/{self.args.task_name}/probe_evaluated/test_{self.args.data_size}_depth_{self.args.depth}_{self.args.model_name}.pkl',
-            ))
+        """    
+        if not probe:
+            prepared_user_prompt, prepared_system_prompt = self.prepare_input(item)
             
-            with open(f'data/{self.args.task_name}/test_{self.args.data_size}_depth_{self.args.depth}.pkl', "rb") as f:
-                raw_dataset = pickle.load(f)
+            self.chat_response_generator.update_chat_history([
+                ("system", prepared_system_prompt),
+            ])
+            
+            model_response = self.chat_response_generator.generate_response(
+                prepared_user_prompt,
+                temperature=self.args.temperature,
+                top_p=self.args.top_p,
+                n=self.args.num_responses,
+                max_tokens=self.args.max_tokens,
+            )[0].replace("Assistant:", "").strip()
                 
-            # Extract all required knowledge from the dataset
-            all_knowledge_list = extract_all_required_knowledge(eval_dataset, raw_dataset)
-            cache_key = f"{self.args.model_name.replace('/', '_')}_{self.args.task_name}_{self.args.data_size}_{self.args.depth}"
-            self.apply_rome_to_model(knowledge_to_inject, all_knowledge_list, cache_key)
+            item["model_response"] = model_response
+        else:
+            prepared_user_prompt, prepared_system_prompt = self.prepare_probe_input(item)
             
-        prepared_user_prompt, prepared_system_prompt = self.prepare_input(item)
-        
-        self.chat_response_generator.update_chat_history([
-            ("system", prepared_system_prompt),
-        ])
-        
-        model_response = self.chat_response_generator.generate_response(
-            prepared_user_prompt,
-            temperature=self.args.temperature,
-            top_p=self.args.top_p,
-            n=self.args.num_responses,
-            max_tokens=self.args.max_tokens,
-        )[0].replace("Assistant:", "").strip()
+            self.chat_response_generator.update_chat_history([
+                ("system", prepared_system_prompt),
+            ])
             
-        item["model_response"] = model_response
-        
-        # Restore the original model state but keep the usage statistics
-        usage = self.chat_response_generator.get_usage()
-        self.chat_response_generator.client.handler.pipeline.model.load_state_dict(original_model_state_dict)
-        self.chat_response_generator._usage = usage
+            responses = self.chat_response_generator.generate_response(
+                prepared_user_prompt,
+                temperature=self.args.temperature,
+                top_p=self.args.top_p,
+                n=self.args.num_responses,
+                max_tokens=self.args.max_tokens,
+            )
+                
+            item["probe_answers"] = [r.replace("Assistant:", "").strip() for r in responses]
 
         return item, self.chat_response_generator.get_usage()

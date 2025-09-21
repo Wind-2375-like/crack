@@ -33,7 +33,7 @@ class OpenAIChatClient(BaseChatClient):
                 response_format=response_format,
                 max_tokens=max_tokens,
             )
-        elif model_name == "o4-mini":
+        else:
             return self.client.chat.completions.create(
                 model=model_name,
                 messages=self._process_message(messages),

@@ -22,7 +22,6 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="Process a chain of triples.")
     parser.add_argument('--data_size', type=int, default=100, help="Number of triples to process")
-    parser.add_argument('--depth', type=int, default=4, help="Depth of the chain")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
     parser.add_argument('--model_name', type=str, default="llama-3.2-3b", help="Model name for the API")
     parser.add_argument('--task_name', type=str, default="grow", help="Task name")
@@ -93,11 +92,11 @@ if __name__ == "__main__":
     assert args.knowledge_aggregation_scope >= 1 , "knowledge_aggregation_scope must be a positive integer (>= 1)."
 
     eval_dataset = ReasoningEvalDataset(
-        raw_path=f'data/{args.task_name}/test_{args.data_size}_depth_{args.depth}.pkl',
-        probe_path=f'data/eval_results/{args.task_name}/probe_evaluated/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl',
+        raw_path=f'data/{args.task_name}/test_{args.data_size}_.pkl',
+        probe_path=f'data/eval_results/{args.task_name}/probe_evaluated/test_{args.data_size}_{args.model_name}.pkl',
     )
     
-    with open(f'data/{args.task_name}/test_{args.data_size}_depth_{args.depth}.pkl', "rb") as f:
+    with open(f'data/{args.task_name}/test_{args.data_size}.pkl', "rb") as f:
         raw_dataset = pickle.load(f)
     
     with open(args.api_config_file, 'r') as f:
@@ -154,14 +153,31 @@ if __name__ == "__main__":
                 else:
                     current_knowledge_to_inject = extract_all_required_knowledge(items_for_knowledge_extraction, raw_items)
                 
+                # Edit the model ONCE for the entire group
+                method_instance.edit(current_knowledge_to_inject)
+                
                 # Process each item within this conceptual group using the extracted knowledge
                 # The items_for_knowledge_extraction list itself contains the items to process for this group
                 for item_to_process in items_for_knowledge_extraction:
-                    processed_item, usage = method_instance.run(item_to_process, current_knowledge_to_inject)
-                    update_pbar(processed_item, usage, processed_data, token_counts, pbar, args.model_name)
+                    processed_item, _ = method_instance.run(item_to_process, current_knowledge_to_inject)
+                    processed_data.append(processed_item)
+                    pbar.update(1)
+                    
+                batch_usage = method_instance.restore()
+                
+                translated_model_name = translate_model_name(args.model_name)
+                batch_prompt = batch_usage[translated_model_name]["prompt_tokens"]
+                batch_completion = batch_usage[translated_model_name]["completion_tokens"]
+                batch_total = batch_usage[translated_model_name]["total_tokens"]
+
+                token_counts['prompt'] += batch_prompt
+                token_counts['completion'] += batch_completion
+                token_counts['total'] += batch_total
+                
+                pbar.set_postfix_str(f"Prompt: {token_counts['prompt']}, Completion: {token_counts['completion']}, Total: {token_counts['total'] }")
             
     # Use the exact output filename format you requested
-    output_file_path = os.path.join(output_dir, f"{'original' if not args.inject_knowledge else args.method}_{args.data_size}_depth_{args.depth}_{args.model_name}_{args.knowledge_aggregation_scope}.pkl")
+    output_file_path = os.path.join(output_dir, f"{'original' if not args.inject_knowledge else args.method}_{args.data_size}_{args.model_name}_{args.knowledge_aggregation_scope}.pkl")
     
     with open(output_file_path, 'wb') as f:
         pickle.dump(processed_data, f)

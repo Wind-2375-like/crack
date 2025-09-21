@@ -19,10 +19,9 @@ def parse_args():
         Namespace: Parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Process a chain of triples.")
-    parser.add_argument('--data_size', type=int, default=100, help="Number of triples to process")
-    parser.add_argument('--depth', type=int, default=4, help="Depth of the chain")
+    parser.add_argument('--data_size', type=int, default=500, help="Number of triples to process")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
-    parser.add_argument('--model_name', type=str, default="gpt-4.1-mini", help="Model name for the API")
+    parser.add_argument('--model_name', type=str, default="gpt-5-mini-2025-08-07", help="Model name for the API")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -74,10 +73,13 @@ if __name__ == "__main__":
                 pbar.set_postfix_str(f"Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
                 pbar.update(1)
                 count += 1
+                # Save the processed data to a new pickle file
+                with open(f'data/code/test_{args.data_size}.pkl', 'wb') as f:
+                    pickle.dump(processed_data, f)
             except Exception as e:
                 time.sleep(1)  # Sleep to avoid hitting API limits or causing too many errors
                 continue
             
     # Save the processed data to a new pickle file
-    with open(f'data/code/test_{args.data_size}_depth_{args.depth}.pkl', 'wb') as f:
+    with open(f'data/code/test_{args.data_size}.pkl', 'wb') as f:
         pickle.dump(processed_data, f)

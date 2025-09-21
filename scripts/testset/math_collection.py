@@ -19,10 +19,9 @@ def parse_args():
         Namespace: Parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Process math questions.")
-    parser.add_argument('--data_size', type=int, default=100, help="Number of math questions to process")
-    parser.add_argument('--depth', type=int, default=4, help="Useless parameter")
+    parser.add_argument('--data_size', type=int, default=5, help="Number of math questions to process")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
-    parser.add_argument('--model_name', type=str, default="o4-mini", help="Model name for the API")
+    parser.add_argument('--model_name', type=str, default="gpt-5-mini-2025-08-07", help="Model name for the API")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -47,19 +46,19 @@ if __name__ == "__main__":
     )
     
     # prmbench = load_dataset("hitsmy/PRMBench_Preview", split="train")
-    with open("data/math/processed_reason_eval.pkl", "rb") as f:
+    with open("data/math/processed_prm800k.pkl", "rb") as f:
         prmbench = pickle.load(f)
 
     with tqdm(total=args.data_size, desc="Processing math", unit="math") as pbar:
         i = 0
         count = 0
-        while count < args.data_size:
+        while count < args.data_size and i < len(prmbench):
             try:
                 item = prmbench[i]
                 i += 1
                 # Process each item
                 processed_item, usage = process_item(item, args, chat_response_generator)
-                if len(processed_item["probe_questions"]) == 0:
+                if not processed_item or not processed_item.get("probe_questions"):
                     continue
                 # Update the total token counts
                 prompt_tokens = usage[args.model_name]["prompt_tokens"]
@@ -76,5 +75,5 @@ if __name__ == "__main__":
                 continue
             
     # Save the processed data to a new pickle file
-    with open(f'data/math/test_{args.data_size}_depth_{args.depth}.pkl', 'wb') as f:
+    with open(f'data/math/test_{args.data_size}.pkl', 'wb') as f:
         pickle.dump(processed_data, f)
