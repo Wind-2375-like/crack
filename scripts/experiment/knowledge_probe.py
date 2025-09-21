@@ -19,7 +19,7 @@ def parse_args():
         Namespace: Parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Process a chain of triples.")
-    parser.add_argument('--data_size', type=int, default=100, help="Number of triples to process")
+    parser.add_argument('--data_size', type=int, default=500, help="Number of triples to process")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
     parser.add_argument('--model_name', type=str, default="llama-3.2-3b", help="Model name for the API")
     parser.add_argument('--task_name', type=str, default="grow", help="Task name")
