@@ -25,6 +25,12 @@ def translate_model_name(model_name: str) -> str:
         "qwen-2.5-3b": 'Qwen/Qwen2.5-3B-Instruct',
         "qwen-2.5-7b": 'Qwen/Qwen2.5-7B-Instruct',
         "qwen-2.5-14b": 'Qwen/Qwen2.5-14B-Instruct',
+        "qwen-3-1.7b": "Qwen/Qwen3-1.7B",
+        "qwen-3-1.7b-thinking": "Qwen/Qwen3-1.7B-Thinking",
+        "qwen-3-4b": "Qwen/Qwen3-4B",
+        "qwen-3-4b-thinking": "Qwen/Qwen3-4B-Thinking",
+        "qwen-3-8b": "Qwen/Qwen3-8B",
+        "qwen-3-8b-thinking": "Qwen/Qwen3-8B-Thinking",
         "olmo-2-1b": "allenai/OLMo-2-0425-1B-Instruct",
         "olmo-2-7b": "allenai/OLMo-2-1124-7B-Instruct",
     }
