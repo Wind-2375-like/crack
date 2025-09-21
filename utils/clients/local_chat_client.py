@@ -2,6 +2,7 @@ from utils.clients.base_chat_client import BaseChatClient
 from utils.handlers.meta_llama_handler import MetaLlamaHandler
 from utils.handlers.meta_vllama_handler import MetaVLlamaHandler
 from utils.handlers.qwen_handler import QwenHandler
+from utils.handlers.qwen3_handler import Qwen3Handler
 from utils.handlers.olmo_handler import OlmoHandler
 
 class DotDict(dict):
@@ -29,6 +30,12 @@ class LocalChatClient(BaseChatClient):
         'Qwen/Qwen2.5-14B-Instruct': QwenHandler,
         "allenai/OLMo-2-0425-1B-Instruct": OlmoHandler,
         "allenai/OLMo-2-1124-7B-Instruct": OlmoHandler,
+        'Qwen/Qwen3-1.7B': Qwen3Handler,
+        'Qwen/Qwen3-1.7B-Thinking': Qwen3Handler,
+        'Qwen/Qwen3-4B': Qwen3Handler,
+        'Qwen/Qwen3-4B-Thinking': Qwen3Handler,
+        'Qwen/Qwen3-8B': Qwen3Handler,
+        'Qwen/Qwen3-8B-Thinking': Qwen3Handler,
         # Add more models and handlers as needed
     }
 
