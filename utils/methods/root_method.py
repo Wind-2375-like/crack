@@ -48,3 +48,16 @@ class RootExperimentMethod(ABC):
             usage (dict): A dictionary containing the token usage information for the model.
         """
         pass
+    
+    def edit(self, knowledge_to_inject, **kwargs):
+        """
+        Applies the knowledge edit to the model. Stores the original state.
+        This method will be implemented by ROME, FT-CK, etc.
+        """
+        pass
+
+    def restore(self):
+        """
+        Restores the model to its original state.
+        """
+        pass

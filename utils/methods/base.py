@@ -43,7 +43,7 @@ class Method(RootExperimentMethod):
                 "\"The answer is ...\", and should be placed at the final step. "
                 "Please make an educated guess and always return an entity. "
                 "Users may provide a set of facts or not. If they provide facts that conflict with your knowledge, you should update your "
-                "knowledge and use the facts to answer the question.\n\n"
+                "knowledge and include the facts in your reasoning steps to answer the question.\n\n"
                 "[Here is one demonstration]\n\n"
                 "User:\nWho is the person who is the current head of government of British married to?\nPlease update your knowledge with the following facts:\n"
                 "The name of the current head of the British government is Keir Starmer.\n\n"
@@ -120,7 +120,7 @@ def task_func(dealer_sales_data):
                 "\t...\n"
                 "```\n"
                 "Users may provide a set of facts about functions from Python libraries. If they provide facts that conflict with your knowledge, you should update your "
-                "knowledge and use the facts to answer the question.\n\n"
+                "knowledge and include the facts in your reasoning steps and codes to answer the question.\n\n"
                 "[Here is one demonstration]\n\n"
                 "User:\nCompute and return the IDs of the best-selling cars from `dealer_sales_data`, a list of dictionaries, with each composed of an 'id' key (a string identifier) and a 'num_sold' key (an integer). The function should output with:\nids: A list of string ids for the car(s) that sell the best. If multiple car ids achieve the maximum sales, all are returned. The list should be sorted alphabetically for consistent output.\nYou should write self-contained code starting with:\n```python\nimport pandas as pd\ndef task_func(dealer_sales_data):\n```\n"
                 "Please update your knowledge with following facts:\n"
@@ -167,6 +167,8 @@ def task_func(dealer_sales_data):
                 "The final answer to the question should start with "
                 "\"The answer is ...\", and should be placed at the final step. "
                 "Please make an educated guess and always return an answer.\n\n"
+                "Users may provide a set of facts or not. If they provide facts that conflict with your knowledge, you should update your "
+                "knowledge and include the facts in your reasoning steps to answer the question.\n\n"
                 "[Here is one demonstration]\n\n"
                 "User:\nThree pencils and a jumbo eraser cost $1.24. Five pencils and a jumbo eraser cost $1.82. No prices include tax. In cents, what is the cost of a pencil?\nPlease update your knowledge with the following facts:\n"
                 "Given the equations $3p+e=1.24$ and $5p+e=1.82$, subtracting the first equation from the second will eliminate the variable 'e'.\n\n"
@@ -191,7 +193,59 @@ def task_func(dealer_sales_data):
 
         return prepared_user_prompt, prepared_system_prompt
     
-    def run(self, item, knowledge_to_inject=[]):
+    def prepare_probe_input(self, item, knowledge_to_inject_str=""):
+        """
+        Prepares the input for the model.
+        Args:
+            item (dict): A dictionary containing:
+                - "id": index of the question
+                - "question": the question text
+                - "answer": the answer text
+                - "required_knowledge": the list of required knowledge
+            knowledge_to_inject_str (str, optional): Pre-formatted string of knowledge to inject. Defaults to "".
+        Returns:
+            tuple: A tuple containing:
+                - prepared_user_prompt (str): The user prompt for the model.
+                - prepared_system_prompt (str): The system prompt for the model.
+        """
+        
+        if self.args.task_name == "grow":
+            system_prompt_without_injection = "Answer the question with the name of an entity. Provide only the name of the entity as your answer. Please make an educated guess and always return an entity.\n\n[Here is one demonstration]\n\nUser:\nWho is the developer of Telegram?\n\nAssistant:\nTelegram FZ-LLC"
+            
+            system_prompt_after_injection = "Answer the question with the name of an entity. Provide only the name of the entity as your answer. Please make an educated guess and always return an entity. Users may provide a set of facts or not. If they provide facts that conflict with your knowledge, you should update your knowledge to answer the question.\n\n[Here is one demonstration]\n\nUser:\nWho is the developer of Telegram?\nPlease update your knowledge with the following facts:\nThe developer of Telegram is Telegram FZ-LLC.\n\nAssistant:\nTelegram FZ-LLC"
+            
+            if self.args.inject_knowledge and knowledge_to_inject_str: # Inject only if flag is true AND there's knowledge
+                prepared_system_prompt = system_prompt_after_injection
+                prepared_user_prompt = f"User:\n{item['question']}\nPlease update your knowledge with the following facts:\n{knowledge_to_inject_str}\nAssistant:\n"
+            else: # No knowledge injection or no "unknown" knowledge found for this scope
+                prepared_system_prompt = system_prompt_without_injection
+                prepared_user_prompt = f"User:\n{item['question']}\nAssistant:\n"
+        elif self.args.task_name == "code":
+            system_prompt_without_injection = "Answer the question with a Python code snippet, which requires ONLY ONE direct function or class constructor call from ONLY ONE library.\nProvide ONLY ONE function or constructor call itself with correct positional arguments.\n- Do NOT include import statements.\n- Do NOT include example data, variable assignments, or any other code.\n- For each keyword argument of the function, if the question implies specific keyword arguments, include them in the function call. If the question does not require the keyword argument explicitly or only require it with its default value, the function can be called without this keyword argument.\n- Please make an educated guess and always return a function call.\n\n[Here is one demonstration]\n\nUser:\nGiven the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?\n\nAssistant:\n```python\npandas.DataFrame(data)\n```"
+            
+            system_prompt_after_injection = "Answer the question with a Python code snippet, which requires ONLY ONE direct function or class constructor call from ONLY ONE library.\nProvide ONLY ONE function or constructor call itself with correct positional arguments.\n- Do NOT include import statements.\n- Do NOT include example data, variable assignments, or any other code.\n- For each keyword argument of the function, if the question implies specific keyword arguments, include them in the function call. If the question does not require the keyword argument explicitly or only require it with its default value, the function can be called without this keyword argument.\n- Please make an educated guess and always return a function call.\n\nUsers may provide a set of facts about functions from Python libraries. If they provide facts that conflict with your knowledge, you should update your knowledge to answer the question.\n\n[Here is one demonstration]\n\nUser:\nGiven the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?\nPlease update your knowledge with following facts:\nWe can use pandas.DataFrame(data) to create a DataFrame.\n\nAssistant:\n```python\npandas.DataFrame(data)\n```"
+            if self.args.inject_knowledge and knowledge_to_inject_str: # Inject only if flag is true AND there's knowledge
+                prepared_system_prompt = system_prompt_after_injection
+                prepared_user_prompt = f"User:\n{item['question']}\nPlease update your knowledge with following facts:\n{knowledge_to_inject_str}\nAssistant:\n"
+            else: # No knowledge injection or no "unknown" knowledge found for this scope
+                prepared_system_prompt = system_prompt_without_injection
+                prepared_user_prompt = f"User:\n{item['question']}\nAssistant:\n"
+        elif self.args.task_name == "math":
+            system_prompt_without_injection = "Answer the math question with a concise sentence. Provide only the direct answer to the math question and no more additional reasoning.\n\n[Here is one demonstration]\n\nUser:\nGiven the equations $3p+e=1.24$ and $5p+e=1.82$, what specific operation will eliminate the variable 'e'?\n\nAssistant:\nSubtracting the first equation from the second will eliminate the variable 'e'."
+            
+            system_prompt_after_injection = "Answer the math question with a concise sentence. Provide only the direct answer to the math question and no more additional reasoning. Users may provide a set of facts or not. If they provide facts that conflict with your knowledge, you should update your knowledge to answer the question.\n\n[Here is one demonstration]\n\nUser:\nGiven the equations $3p+e=1.24$ and $5p+e=1.82$, what specific operation will eliminate the variable 'e'?\nPlease update your knowledge with following facts:\nTo eliminate the variable 'e' from $3p+e=1.24$ and $5p+e=1.82$, we need to subtract the first equation from the second.\n\nAssistant:\nSubtracting the first equation from the second will eliminate the variable 'e'."
+            if self.args.inject_knowledge and knowledge_to_inject_str: # Inject only if flag is true AND there's knowledge
+                prepared_system_prompt = system_prompt_after_injection
+                prepared_user_prompt = f"User:\n{item['question']}\nPlease update your knowledge with the following facts:\n{knowledge_to_inject_str}\nAssistant:\n"
+            else: # No knowledge injection or no "unknown" knowledge found for this scope
+                prepared_system_prompt = system_prompt_without_injection
+                prepared_user_prompt = f"User:\n{item['question']}\nAssistant:\n"
+        else:
+            raise NotImplementedError(f"Task {self.args.task_name} is not implemented.")
+
+        return prepared_user_prompt, prepared_system_prompt
+    
+    def run(self, item, knowledge_to_inject=[], probe=False):
         """
         Probes a chain of triples using the specified model.
         Args:
@@ -204,20 +258,39 @@ def task_func(dealer_sales_data):
         
         knowledge_to_inject = [k['knowledge'] for k in knowledge_to_inject]
         knowledge_to_inject_str = " ".join(knowledge_to_inject)
-        prepared_user_prompt, prepared_system_prompt = self.prepare_input(item, knowledge_to_inject_str)
         
-        self.chat_response_generator.update_chat_history([
-            ("system", prepared_system_prompt),
-        ])
+        if not probe:
+            prepared_user_prompt, prepared_system_prompt = self.prepare_input(item, knowledge_to_inject_str)
         
-        model_response = self.chat_response_generator.generate_response(
-            prepared_user_prompt,
-            temperature=self.args.temperature,
-            top_p=self.args.top_p,
-            n=self.args.num_responses,
-            max_tokens=self.args.max_tokens,
-        )[0].replace("Assistant:", "").strip()
+            self.chat_response_generator.update_chat_history([
+                ("system", prepared_system_prompt),
+            ])
             
-        item["model_response"] = model_response
+            model_response = self.chat_response_generator.generate_response(
+                prepared_user_prompt,
+                temperature=self.args.temperature,
+                top_p=self.args.top_p,
+                n=self.args.num_responses,
+                max_tokens=self.args.max_tokens,
+            )[0].replace("Assistant:", "").strip()
+                
+            item["model_response"] = model_response
+            
+        else:
+            prepared_user_prompt, prepared_system_prompt = self.prepare_probe_input(item, knowledge_to_inject_str)
+            
+            self.chat_response_generator.update_chat_history([
+                ("system", prepared_system_prompt),
+            ])
+            
+            responses = self.chat_response_generator.generate_response(
+                prepared_user_prompt,
+                temperature=self.args.temperature,
+                top_p=self.args.top_p,
+                n=self.args.num_responses,
+                max_tokens=self.args.max_tokens,
+            )
+                
+            item["probe_answers"] = [r.replace("Assistant:", "").strip() for r in responses]
 
         return item, self.chat_response_generator.get_usage()

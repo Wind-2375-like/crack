@@ -13,6 +13,8 @@ import os
 import subprocess
 import json
 from contextlib import contextmanager
+import functools
+import importlib.metadata
 
 
 # --- Global Cache ---
@@ -234,23 +236,89 @@ def build_cache_and_generate_knowledge(dataset_items, signature_cache,
         
     return final_results_all
 
+@functools.lru_cache(maxsize=None)
+def get_package_version(package_name):
+    """Gets the version of a given package."""
+    try:
+        return importlib.metadata.version(package_name)
+    except importlib.metadata.PackageNotFoundError:
+        return "version not found"
+
+def verify_and_correct_answer(probe_question, probe_answer, chat_response_generator):
+    """
+    Checks if the probe_answer is a factually correct answer to the probe_question.
+    If not, it asks the LLM to correct the answer.
+    
+    Returns:
+        tuple: (corrected_answer, was_corrected_bool, new_knowledge_sentence)
+    """
+    # 1. Check factuality
+    system_prompt_check = "You are a helpful assistant."
+    user_prompt_check = f"You are given a coding question which requires a function call from Python external libraries as the ground truth answer. Is the answer factually correct? Please provide a short sentence as explanation and then answer Yes if the answer is factually correct or No if it is not.\n\nQuestion: {probe_question}\n\nAnswer: {probe_answer}"
+    
+    chat_response_generator.update_chat_history([("system", system_prompt_check)])
+    response_check = chat_response_generator.generate_response(
+        query=user_prompt_check,
+        top_p=0.7,
+        temperature=0.7,
+        n=1,
+        max_tokens=4096,
+    )[0]
+
+    if "No" in response_check.split():
+        print(f"\n--- Factuality check failed. Reason: {response_check}")
+        print(f"Original Answer: {probe_answer}. Attempting correction...")
+
+        # 2. Correct the answer
+        system_prompt_correct = "You are an expert Python programmer."
+        user_prompt_correct = f"The following question was asked: \"{probe_question}\"\n\nThe proposed answer `{probe_answer}` is incorrect. Please provide the single, correct Python function call that accurately answers the question. Respond ONLY with the code, without any explanation or markdown formatting like ```python ... ```."
+        
+        chat_response_generator.update_chat_history([("system", system_prompt_correct)])
+        corrected_answer = chat_response_generator.generate_response(
+            query=user_prompt_correct,
+            top_p=0.7,
+            temperature=0.7,
+            n=1,
+            max_tokens=4096,
+        )[0].strip()
+
+        # Clean the corrected answer
+        if corrected_answer.startswith("`") and corrected_answer.endswith("`"):
+            corrected_answer = corrected_answer.strip("`")
+            corrected_answer = corrected_answer.replace("python", "")
+            corrected_answer = corrected_answer.strip()
+        
+        print(f"Corrected Answer: {corrected_answer}")
+
+        # 3. Regenerate the declarative knowledge sentence
+        system_prompt_regen = "You are a helpful assistant that writes clear, declarative sentences."
+        user_prompt_regen = f"""Given the following question and its correct code answer, combine them into a single, complete, context-independent declarative sentence. The sentence should state that the action in the question can be accomplished using the provided code.
+
+Question: {probe_question}
+Code Answer: {corrected_answer}
+
+Sentence:"""
+        chat_response_generator.update_chat_history([("system", system_prompt_regen)])
+        new_knowledge = chat_response_generator.generate_response(
+            query=user_prompt_regen,
+            top_p=0.7,
+            temperature=0.7,
+            n=1,
+            max_tokens=4096,
+        )[0].strip()
+
+        return corrected_answer, True, new_knowledge
+    
+    return probe_answer, False, None
+
 def process_item(item, args, chat_response_generator, facts):
     """
-    Processes a single item from the dataset, extracting code and analyzing library calls.
-
-    Args:
-        item (dict): The item to process, expected to contain 'code'.
-        args (Namespace): Command line arguments.
-        chat_response_generator (ChatResponseGenerator): Instance for generating responses.
-        facts (list): List of library call knowledge to use for processing.
-
-    Returns:
-        dict: Processed item with library call details.
+    Processes a single item from the dataset, generating questions and correcting answers.
     """
     code = f"{item.get('code_prompt', '')}\n\n{item.get('canonical_solution')}"
     if not code:
-        return {"error": "No code to process"}
-    
+        return {"error": "No code to process"}, chat_response_generator.get_usage()
+
     probe_questions = []
     
     system_prompt = (
@@ -258,20 +326,22 @@ def process_item(item, args, chat_response_generator, facts):
         "Your task is to generate probe questions based on the provided code and library calls."
     )
     
-    user_template = """You are asked to generate two items based on the function [ANSWER]:
+    user_template = """You are asked to generate two items based on the function call `[ANSWER]`:
 1.  A **probe question** about the function's basic usage.
 2.  A declarative **answer sentence** that resolves the question.
 
 You can refer to the following docstring for context on the function's purpose:
 [DOCSTRING]
 
+[VERSION_INFO]
+
 ---
 **INSTRUCTIONS**
 
 **1. For the "question":**
-   - It MUST start with "Given the library (libraries) [LIB], how can we ...?".
+   - It MUST start with "Given the function `[FUNCTION_NAME]`, how can we ...?".
    - It MUST be a single sentence.
-   - It MUST NOT reveal the function name `[ANSWER]` or its specific arguments.
+   - It MUST NOT reveal the specific arguments of `[ANSWER]`.
    - It should describe a goal that leads to the simplest, most basic call of the function.
    - If `[ANSWER]` includes specific keyword arguments (e.g., `func(arg1=val)`), the question must be phrased to necessitate those exact arguments.
    - If `[ANSWER]` is a simple call with no keyword arguments (e.g., `func()`), the question should ask for the standard way to achieve the action.
@@ -292,14 +362,31 @@ Use the following structure:
   "answer": "The answer sentence you generated."
 }"""
     
-    probe_questions = []
     docstrings = []
+    
+    # Get package versions from the environment
+    python_version = platform.python_version()
     
     for fact in facts:
         answer = fact.get('canonical_function', '')
+        function_name = fact.get('function', '')
         docstring = fact.get('docstring', '')
         docstrings.append(docstring)
-        user_input = user_template.replace("[ANSWER]", answer).replace("[LIB]", fact.get('library', '')).replace("[DOCSTRING]", docstring)
+        
+        current_library = fact.get('library')
+        version_parts = [f"Python ({python_version})"]
+        if current_library:
+            lib_version = get_package_version(current_library)
+            if lib_version != 'version not found':
+                version_parts.append(f"{current_library} ({lib_version})")
+                
+        specific_version_text = f"Ensure your solution is compatible with the following versions: {', '.join(version_parts)}."
+        
+        user_input = user_template.replace("[ANSWER]", answer)\
+                                  .replace("[FUNCTION_NAME]", function_name)\
+                                  .replace("[DOCSTRING]", docstring)\
+                                  .replace("[VERSION_INFO]", specific_version_text)
+        
         if answer in GLOBAL_QUESTION_CACHE:
             flag = False
             for p in probe_questions:
@@ -318,26 +405,56 @@ Use the following structure:
                 top_p=0.7,
                 temperature=0.7,
                 n=1,
-                max_tokens=512,
+                max_tokens=4096,
             )[0]
             try:
                 response_data = json.loads(response)
-                question = response_data.get("question")
+                question = response_data.get("question") + " " + specific_version_text
                 knowledge = response_data.get("answer") # This is your complete sentence
-                GLOBAL_QUESTION_CACHE[answer] = question
-                GLOBAL_KNOWLEDGE_CACHE[answer] = knowledge
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, AttributeError):
+                print(f"\nWarning: Failed to parse LLM response for {answer}. Skipping fact.")
                 continue
+
+        # Pre-process factuality and correct the answer if necessary
+        corrected_answer, was_corrected, new_knowledge = verify_and_correct_answer(question, answer, chat_response_generator)
+        if was_corrected:
+            knowledge = new_knowledge # Use the regenerated knowledge sentence
+
+        # Update caches with the potentially corrected answer
+        GLOBAL_QUESTION_CACHE[corrected_answer] = question
+        GLOBAL_KNOWLEDGE_CACHE[corrected_answer] = knowledge
+        
         probe_questions.append({
             "question": question,
-            "answer": answer,
+            "answer": corrected_answer,
             "knowledge": knowledge
         })
     
+    all_libs = {fact['library'] for fact in facts}
+    multihop_version_parts = [f"Python ({python_version})"]
+    if all_libs:
+        version_info = {lib: get_package_version(lib) for lib in all_libs}
+        multihop_version_parts.extend([f"{lib} ({version})" for lib, version in version_info.items() if version != 'version not found'])
+    
+    multihop_version_string = ", ".join(multihop_version_parts)
+    multihop_version_text = f"Ensure your solution is compatible with the following versions: {multihop_version_string}."
+    
+    function_list_str = ", ".join([f"`{pq['answer'].split('(')[0]}`" for pq in probe_questions])
+    function_text = f"Your code should include these functions: {function_list_str}."
+
+    original_multihop_question = item.get('instruct_prompt', '')
+    multihop_question_parts = [original_multihop_question]
+    if function_list_str:
+        multihop_question_parts.append(function_text)
+    if multihop_version_text:
+        multihop_question_parts.append(multihop_version_text)
+    
+    modified_multihop_question = "\n\n".join(multihop_question_parts)
+
     # Prepare the processed item
     processed_item = {
         "probe_questions": probe_questions,
-        "multihop_question": item.get('instruct_prompt', ''),
+        "multihop_question": modified_multihop_question,
         "multihop_answer": code,
         "other_metadata": {
             "task_id": item.get('task_id', ''),
@@ -356,6 +473,40 @@ Use the following structure:
     usage = chat_response_generator.get_usage()
     
     return processed_item, usage
+
+def check_factuality(processed_item, args, chat_response_generator):
+    """
+    Check a processed chain to see if its probing question is ambiguous.
+
+    Args:
+        processed_item (dict): A dictionary for a single example.
+        args (Namespace): Command line arguments.
+        chat_response_generator (ChatResponseGenerator): Instance of the ChatResponseGenerator class.
+
+    Returns:
+        keep_item: 
+            A boolean value indicating whether to keep the example.
+    """
+    for chain in processed_item["probe_questions"]:
+        probe_question = chain["question"]
+        probe_answer = chain["answer"]
+        system_prompt = "You are a helpful assistant."
+        user_prompt = f"You are given a coding question which requires a function call from Python external libraries as the ground truth answer. Is the answer factually correct? Please provide a short sentence as explanation and then answer Yes if the answer is factually correct or No if it is not.\n\nQuestion: {probe_question}\n\nAnswer: {probe_answer}"
+        chat_response_generator.update_chat_history([
+            ("system", system_prompt),
+        ])
+        response = chat_response_generator.generate_response(
+            query=user_prompt,
+            top_p=0.7,
+            temperature=0.7,
+            n=1,
+            max_tokens=4096,
+        )[0]
+        if "No" in response.split():
+            print("Discard Reason:")
+            print(response)
+            return False
+    return True
 
 # Define a timeout for the execution of the untrusted code
 EXECUTION_TIMEOUT = 240  # Increased timeout as requested

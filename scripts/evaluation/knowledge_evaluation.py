@@ -21,10 +21,9 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="Process a chain of triples.")
     parser.add_argument('--data_size', type=int, default=100, help="Number of triples to process")
-    parser.add_argument('--depth', type=int, default=4, help="Depth of the chain")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
     parser.add_argument('--model_name', type=str, default="llama-3.2-3b", help="Model name for the API")
-    parser.add_argument('--evaluate_model_name', type=str, default="gpt-4.1-mini", help="Model name for the evaluation")
+    parser.add_argument('--evaluate_model_name', type=str, default="gpt-5-mini-2025-08-07", help="Model name for the evaluation")
     parser.add_argument('--task_name', type=str, default="grow", help="Task name")
     return parser.parse_args()
 
@@ -89,7 +88,7 @@ Note that if the response does not contain a function call, it should be treated
 --- Examples 1 ---
 
 Question: 
-Given the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?
+Given the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter? Ensure your solution is compatible with the following versions: Python (3.12.9).
 
 Function: 
 pandas.DataFrame(data)
@@ -105,7 +104,7 @@ Yes, the response contains the same function call as the ground truth function c
 --- Example 2 ---
 
 Question: 
-Given the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?
+Given the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter? Ensure your solution is compatible with the following versions: Python (3.12.9).
 
 Function: pandas.DataFrame(data)
 
@@ -120,7 +119,7 @@ Yes, the response contains the same function call as the ground truth function c
 --- Example 3 ---
 
 Question: 
-Given the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter?
+Given the library pandas, how can we create a DataFrame by explicitly passing the input data (such as an ndarray, Iterable, dict, or DataFrame) using the `data` parameter? Ensure your solution is compatible with the following versions: Python (3.12.9).
 
 Function: pandas.DataFrame(data)
 
@@ -302,7 +301,7 @@ def evaluate_probe_item(item, args, chat_response_generator):
                 raise NotImplementedError(f"Task {args.task_name} is not implemented.")
             llm_responses = chat_response_generator.generate_response(
                 llm_input_prompt,
-                temperature=0, top_p=1, n=1, max_tokens=100
+                temperature=0, top_p=1, n=1, max_tokens=4096
             )
             raw_llm_response = llm_responses[0]
             is_equivalent, explanation = _parse_llm_equivalence_response(raw_llm_response)
@@ -396,7 +395,7 @@ if __name__ == "__main__":
             raise ValueError("User agent not found in the configuration file.")
         
     # Load the chains from a pickle file
-    with open(f'data/eval_results/{args.task_name}/probe/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'rb') as f:
+    with open(f'data/eval_results/{args.task_name}/probe/test_{args.data_size}_{args.model_name}.pkl', 'rb') as f:
         probe_dataset = pickle.load(f)
         
     # Process all chains
@@ -422,9 +421,9 @@ if __name__ == "__main__":
             pbar.update(1)
             
             # Save the processed data to a new pickle file
-            with open(f'data/eval_results/{args.task_name}/probe_evaluated/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'wb') as f:
+            with open(f'data/eval_results/{args.task_name}/probe_evaluated/test_{args.data_size}_{args.model_name}.pkl', 'wb') as f:
                 pickle.dump(processed_data, f)
 
     # Save the processed data to a new pickle file
-    with open(f'data/eval_results/{args.task_name}/probe_evaluated/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'wb') as f:
+    with open(f'data/eval_results/{args.task_name}/probe_evaluated/test_{args.data_size}_{args.model_name}.pkl', 'wb') as f:
         pickle.dump(processed_data, f)

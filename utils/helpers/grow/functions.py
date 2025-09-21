@@ -2,7 +2,9 @@ import random
 import requests
 import calendar
 from SPARQLWrapper import SPARQLWrapper, JSON
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Set
+from datetime import date
+import time
 
 # Wikidata API endpoint
 WIKIDATA_API_ENDPOINT = "https://www.wikidata.org/w/api.php"
@@ -89,7 +91,7 @@ def object_should_be(prop: str) -> Optional[str]:
     else:
         return None
 
-def get_wikidata_label(entity_id: str, lang: str = "en") -> str:
+def get_wikidata_label(entity_id: str, session: requests.Session, lang: str = "en") -> str:
     """
     Fetches the label for a Wikidata entity (e.g. 'Q42' or 'P31') in the specified language.
 
@@ -105,7 +107,7 @@ def get_wikidata_label(entity_id: str, lang: str = "en") -> str:
         "languages": lang,
         "format": "json"
     }
-    response = requests.get(url, params=params)
+    response = session.get(url, params=params)
     response.raise_for_status()
     data = response.json()
 
@@ -117,30 +119,70 @@ def get_wikidata_label(entity_id: str, lang: str = "en") -> str:
 
     return label_info.get("value", "")
 
-def get_random_qid() -> str:
+def get_random_qid(session: requests.Session, min_sitelinks: int = 5) -> str:
     """
-    Uses the MediaWiki API to pick a random main-namespace page
-    and returns its Q‑ID (always starts with 'Q'). Loops until
-    a valid Q‑ID is found.
+    Finds a random popular Q-ID using a "get-then-check" method.
+    
+    It fetches random Q-IDs and separately checks their sitelink count,
+    looping until it finds one that meets the threshold. This avoids
+    complex SPARQL queries that can time out.
+    
+    Args:
+        session: The requests.Session object.
+        min_sitelinks: The minimum number of sitelinks for an item to be 
+                       considered "popular".
+                       
+    Returns:
+        A Q-ID string that meets the popularity criteria.
     """
-    session = requests.Session()
-    URL = "https://www.wikidata.org/w/api.php"
-    params = {
-        'action': 'query',
-        'list': 'random',
-        'rnnamespace': 0,
-        'rnlimit': 1,
-        'format': 'json'
-    }
-
+    
+    attempts = 0
     while True:
-        resp = session.get(URL, params=params).json()
-        title = resp['query']['random'][0]['title']
-        # Only accept titles that look like valid Q‑IDs
-        if title.startswith("Q") and title[1:].isdigit():
-            return title
+        attempts += 1
+        # --- Step 1: Get a random Q-ID (your original logic) ---
+        # This API call is very fast.
+        random_params = {
+            'action': 'query',
+            'list': 'random',
+            'rnnamespace': 0, # Main namespace for Q-IDs
+            'rnlimit': 1,
+            'format': 'json'
+        }
+        try:
+            # Added a timeout for safety
+            resp = session.get("https://www.wikidata.org/w/api.php", params=random_params, timeout=10).json()
+            title = resp['query']['random'][0]['title']
+        except (requests.exceptions.RequestException, KeyError) as e:
+            time.sleep(5)
+            continue # Skip to the next loop iteration
 
-def build_chain(start_qid: str, max_depth: int = 5, wbi = None, UA = None) -> List[dict]:
+        # We only care about valid Q-IDs
+        if not (title.startswith("Q") and title[1:].isdigit()):
+            continue
+            
+        # --- Step 2: Check the sitelink count for that Q-ID ---
+        # This API call is also very fast for a single ID.
+        check_params = {
+            'action': 'wbgetentities',
+            'ids': title,
+            'props': 'sitelinks', # We only need sitelinks, making it faster
+            'format': 'json'
+        }
+        try:
+            resp = session.get("https://www.wikidata.org/w/api.php", params=check_params, timeout=10).json()
+            entity = resp['entities'][title]
+            
+            # The 'sitelinks' key might not exist if there are none.
+            sitelink_count = len(entity.get('sitelinks', {}))
+
+            # --- Step 3: If it's popular enough, return it! ---
+            if sitelink_count >= min_sitelinks:
+                return title
+                
+        except (requests.exceptions.RequestException, KeyError) as e:
+            continue
+
+def build_chain(start_qid: str, max_depth: int = 5, wbi = None, session: requests.Session = None, non_factual_cache: Set[Tuple[str, str, str]] = set()) -> List[dict]:
     """
     Returns a list of (e_i, p_i, e_{i+1}) up to max_depth,
     never revisiting the same entity.
@@ -173,13 +215,17 @@ def build_chain(start_qid: str, max_depth: int = 5, wbi = None, UA = None) -> Li
             # check that it’s an item link
             if isinstance(val, dict) and 'id' in val:
                 nxt = val['id']
+                # Check the cache before proceeding
+                if (current, prop, nxt) in non_factual_cache:
+                    continue # Skip this triple as it's known to be non-factual
+                
                 if nxt in visited or prop in visited_props:
                     # would form a cycle
                     continue
                 
-                current_label = get_wikidata_label(current)
-                nxt_label = get_wikidata_label(nxt)
-                prop_label = get_wikidata_label(prop)
+                current_label = get_wikidata_label(current, session)
+                nxt_label = get_wikidata_label(nxt, session)
+                prop_label = get_wikidata_label(prop, session)
                 
                 if current_label == "" or nxt_label == "" or prop_label == "" or len(current_label.split()) > 5 or len(nxt_label.split()) > 5 or len(current_label) > 50 or len(nxt_label) > 50:
                     # skip if any label is empty or too long
@@ -196,7 +242,7 @@ def build_chain(start_qid: str, max_depth: int = 5, wbi = None, UA = None) -> Li
                 # record the triple and advance the chain
                 chain.append({
                     "triple": (current, prop, nxt),
-                    "triple_label": (get_wikidata_label(current), get_wikidata_label(prop), get_wikidata_label(nxt)),
+                    "triple_label": (get_wikidata_label(current, session), get_wikidata_label(prop, session), get_wikidata_label(nxt, session)),
                 })
                 visited.add(nxt)
                 visited_props.add(prop)
@@ -210,24 +256,27 @@ def build_chain(start_qid: str, max_depth: int = 5, wbi = None, UA = None) -> Li
 
     return chain
 
-def sample_chain_exact(args, wbi, UA) -> List[Tuple[str, str, str]]:
+def sample_chain_exact(depth, wbi, args, non_factual_cache: Set[Tuple[str, str, str]]) -> List[Tuple[str, str, str]]:
     """
     Sample a chain with exactly length==depth such that:
     1. No entity is revisited (i.e. no cycles)
-    2. The first triple is updated between 2023-12 and 2025-04
-    3. The properties are in the allowed set
+    2. The properties are in the allowed set
+    3. Skip if any label is empty or too long
     4. There is only one claim for each property
-    5. The labels for the entities and properties are not empty
+    5. If the subject or object of the property is a specific type, check if it matches
     """
     tries = 0
-    depth = args.depth
-        
+    session = requests.Session()
+    session.headers.update({
+        'Authorization': f'Bearer {args.access_token}',
+        'User-Agent': args.ua
+    })
     while True:
         tries += 1
-        start = get_random_qid()
+        start = get_random_qid(session)
         if not start:
             continue
-        chain = build_chain(start, max_depth=depth, wbi=wbi, UA=UA)
+        chain = build_chain(start, max_depth=depth, wbi=wbi, session=session, non_factual_cache=non_factual_cache)
         if len(chain) == depth:
             return chain
         
@@ -360,6 +409,8 @@ def process_chain(chain, args, chat_response_generator):
             A dictionary containing triples, probe questions, multi-hop questions,
             and multi-hop answer for the chain.
     """
+    current_date = date.today()
+    initial_date_string = current_date.strftime("%b. %d, %Y")
     if not chain:
         return {
             "triples": [],
@@ -395,7 +446,7 @@ def process_chain(chain, args, chat_response_generator):
         answer = o_label
 
         probe_questions.append({
-            "question": question,
+            "question": f"By {initial_date_string}, {question[0].lower()+question[1:]}",
             "answer": answer,
             "knowledge": format_grow_knowledge(triple_dict),
         })
@@ -411,9 +462,142 @@ def process_chain(chain, args, chat_response_generator):
     return {
         "triples": processed_triples,
         "probe_questions": probe_questions,
-        "multihop_question": multihop_question,
+        "multihop_question": f"By {initial_date_string}, {multihop_question[0].lower()+multihop_question[1:]}",
         "multihop_answer": multihop_answer
     }, {args.model_name: {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}}
+    
+def check_ambiguity(processed_chain, args, chat_response_generator):
+    """
+    Check a processed chain to see if its probing question is ambiguous.
+
+    Args:
+        processed chain (dict): A dictionary for a single reasoning chain.
+        args (Namespace): Command line arguments.
+        chat_response_generator (ChatResponseGenerator): Instance of the ChatResponseGenerator class.
+
+    Returns:
+        keep_chain: 
+            A boolean value indicating whether to keep the chain.
+    """
+    for chain in processed_chain["probe_questions"]:
+        probe_question = chain["question"]
+        system_prompt = "You are a helpful assistant."
+        user_prompt = f"You are given a question which requires the name of an entity. Does the question contain any ambiguity? Please provide a short sentence as explanation and then answer Yes if the question contains any ambiguity or No if it is clear and free of ambiguity.\n\nQuestion: {probe_question}"
+        chat_response_generator.update_chat_history([
+            ("system", system_prompt),
+        ])
+        response = chat_response_generator.generate_response(
+            query=user_prompt,
+            top_p=0.7,
+            temperature=0.7,
+            n=1,
+            max_tokens=4096,
+        )[0]
+        if "Yes" in response.split():
+            print("Discard Reason:")
+            print(response)
+            return False
+    return True
+
+def check_factuality(processed_chain, args, chat_response_generator, non_factual_cache: Set[Tuple[str, str, str]]):
+    """
+    Check a processed chain to see if its probing question is ambiguous.
+
+    Args:
+        processed chain (dict): A dictionary for a single reasoning chain.
+        args (Namespace): Command line arguments.
+        chat_response_generator (ChatResponseGenerator): Instance of the ChatResponseGenerator class.
+
+    Returns:
+        keep_chain: 
+            A boolean value indicating whether to keep the chain.
+    """
+    for i, chain in enumerate(processed_chain["probe_questions"]):
+        probe_question = chain["question"]
+        probe_answer = chain["answer"]
+        system_prompt = "You are a helpful assistant."
+        user_prompt = f"You are given a question which requires the name of an entity, and the ground truth answer. Is the answer factually correct currently? Please provide a short sentence as explanation and then answer Yes if the answer is factually correct currently or No if it is not.\n\nQuestion: {probe_question}\n\nAnswer: {probe_answer}"
+        chat_response_generator.update_chat_history([
+            ("system", system_prompt),
+        ])
+        response = chat_response_generator.generate_response(
+            query=user_prompt,
+            top_p=0.7,
+            temperature=0.7,
+            n=1,
+            max_tokens=4096,
+        )[0]
+        if "No" in response.split():
+            print("Discard Reason (Factuality):")
+            print(response)
+
+            # Update the cache with the non-factual triple
+            s_id, p_id, o_id = processed_chain["triples"][i]["triple"]
+            non_factual_cache.add((s_id, p_id, o_id))
+            print(f"Cache updated: Added non-factual triple {(s_id, p_id, o_id)}")
+            
+            return False
+    return True
+
+def check_necessity(processed_chain, args, chat_response_generator):
+    """
+    Check a processed chain to see if all atomic facts are necessary.
+
+    Args:
+        processed chain (dict): A dictionary for a single reasoning chain.
+        args (Namespace): Command line arguments.
+        chat_response_generator (ChatResponseGenerator): Instance of the ChatResponseGenerator class.
+
+    Returns:
+        keep_chain: 
+            A boolean value indicating whether to keep the chain.
+    """
+    multihop_question = processed_chain["multihop_question"]
+    multihop_answer = processed_chain["multihop_answer"]
+    system_prompt = "You are a helpful assistant."
+    user_prompt = f"You are given a question which requires multiple facts to perform reasoning and answer. Are all facts necessarily required to answer the question, or is an alternative set of knowledge also valid? Please provide a short sentence as explanation. Then answer Yes if all facts are necessary or No if it is not. \n\nHere is an example where all facts are necessary (Yes):\n\nQuestion: Which city was the person who was married to the head of government of the United Kingdom was born in?\n\nAnswer: London\n\nFacts:\nThe head of government of the United Kingdom is Keir Starmer.\nVictoria Starmer was married to Keir Starmer.\nVictoria Starmer was born in London.\n\nReason: each piece of information is a necessary link in the logical chain because we need to know the prime minister first, then the person married to the prime minister, and finally where the person was born. We cannot bypass any facts or use an alternative reasoning chain.\n\nHere is an example where some facts are not necessary (No):\n\nQuestion: What kind of work does the person who is the current head of government of the city where the creator of The Serenade was born do?\n\nAnswer: Politician\n\nFacts:\nThe Serenade was created by Frans van Mieris the Elder.\nFrans van Mieris the Elder was born in the city of Leiden.\nThe current head of the Leiden government is Henri Lenferink.\nHenri Lenferink works in the field of politician.\n\nReason: the head of government for a city is, by definition, a political role and one does not need to know the specific name of the creator or head of government to derive the answer.\n\nHere is an example where some facts are not necessary (No):\n\nQuestion: What is the official language of the capital of the country where the performer of Paperlate was created?\n\nAnswer: English\n\nFacts:\nPaperlate was performed by Genesis.\nGenesis was created in the country of United Kingdom.\nThe capital of United Kingdom is London.\nThe official language of London is English.\n\nReason: since we know Genesis was created in the UK, and the official langauge of the capital of UK is the same as the official language of UK, which is Englis, the fact that the capital of United Kingdom is London is unnecessary. \n\nExamples finish and response begins:\n\nQuestion: {multihop_question}\n\nAnswer: {multihop_answer}\n\nFacts:\n{'\n'.join([chain['knowledge'] for chain in processed_chain['probe_questions']])}"
+    chat_response_generator.update_chat_history([
+        ("system", system_prompt),
+    ])
+    response = chat_response_generator.generate_response(
+        query=user_prompt,
+        top_p=0.7,
+        temperature=0.7,
+        n=1,
+        max_tokens=4096,
+    )[0]
+    if "No" in response.split():
+        print("Discard Reason:")
+        print(response)
+        return False
+    return True
+    
+def postprocess_chain(processed_chain, args, chat_response_generator, non_factual_cache: Set[Tuple[str, str, str]]):
+    """
+    Filter out bad quality examples.
+
+    Args:
+        chain (list): A list of triple dictionaries for a single chain.
+        args (Namespace): Command line arguments.
+        chat_response_generator (ChatResponseGenerator): Instance of the ChatResponseGenerator class.
+
+    Returns:
+        dict: 
+            A dictionary containing triples, probe questions, multi-hop questions,
+            and multi-hop answer for the chain.
+    """
+    print(processed_chain)
+    
+    # Check subquestion factuality
+    keep_chain = check_factuality(processed_chain, args, chat_response_generator, non_factual_cache)
+    
+    # Check necessity of atomic facts
+    if keep_chain:
+        keep_chain = check_necessity(processed_chain, args, chat_response_generator)
+    else:
+        keep_chain = False
+    
+    return keep_chain, chat_response_generator.get_usage()
     
 def make_api_request(params):
     """Makes a request to the Wikidata API and returns the JSON response."""

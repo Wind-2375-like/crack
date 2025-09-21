@@ -20,7 +20,6 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="Process a chain of triples.")
     parser.add_argument('--data_size', type=int, default=100, help="Number of triples to process")
-    parser.add_argument('--depth', type=int, default=4, help="Depth of the chain")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
     parser.add_argument('--model_name', type=str, default="llama-3.2-3b", help="Model name for the API")
     parser.add_argument('--task_name', type=str, default="grow", help="Task name")
@@ -84,7 +83,7 @@ if __name__ == "__main__":
     args = parse_args()
     
     # Load the probe dataset
-    probe_dataset = ProbeDataset(f'data/{args.task_name}/test_{args.data_size}_depth_{args.depth}.pkl')
+    probe_dataset = ProbeDataset(f'data/{args.task_name}/test_{args.data_size}.pkl')
     
     # Load the API key from the configuration file
     with open(args.api_config_file, 'r') as f:
@@ -121,5 +120,5 @@ if __name__ == "__main__":
             pbar.update(1)
 
     # Save the processed data to a new pickle file
-    with open(f'data/eval_results/{args.task_name}/probe/test_{args.data_size}_depth_{args.depth}_{args.model_name}.pkl', 'wb') as f:
+    with open(f'data/eval_results/{args.task_name}/probe/test_{args.data_size}_{args.model_name}.pkl', 'wb') as f:
         pickle.dump(processed_data, f)
