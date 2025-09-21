@@ -11,9 +11,9 @@ def get_output_file_path(task_name, model_name, inject_knowledge, method, scope,
     output_dir = f'data/eval_results/{task_name}/injection_evaluated/'
     default_scope_for_original = '1' 
     if inject_knowledge:
-        filename = f"{method}_{data_size}_depth_4_{model_name}_{scope}.pkl"
+        filename = f"{method}_{data_size}_{model_name}_{scope}.pkl"
     else:
-        filename = f"original_{data_size}_depth_4_{model_name}_{default_scope_for_original}.pkl"
+        filename = f"original_{data_size}_{model_name}_{default_scope_for_original}.pkl"
     return os.path.join(output_dir, filename)
 
 def generate_commands(args):
