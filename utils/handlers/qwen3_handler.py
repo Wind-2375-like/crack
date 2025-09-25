@@ -33,12 +33,9 @@ class Qwen3Pipeline:
 
         # Try to find the </think> token to separate thought from the final answer
         try:
-            # Find the index of the </think> token from the end
             end_think_index = len(output_ids) - output_ids[::-1].index(QWEN3_END_THINK_TOKEN_ID)
-            # The final content is everything after the </think> token
             final_content_ids = output_ids[end_think_index:]
         except ValueError:
-            # If the </think> token is not found, assume the whole output is the final answer
             final_content_ids = output_ids
             
         return self.tokenizer.decode(final_content_ids, skip_special_tokens=True).strip()
@@ -62,7 +59,7 @@ class Qwen3Pipeline:
             temperature = kwargs.get("temperature", 0.7)
             top_p = kwargs.get("top_p", 0.8)
 
-        n = kwargs.get("num_return_sequences", 1)
+        n = kwargs.get("n", 1)
         max_tokens = kwargs.get("max_tokens", 512)
         
         with torch.no_grad():
