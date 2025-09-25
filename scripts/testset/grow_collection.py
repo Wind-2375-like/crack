@@ -21,8 +21,8 @@ def parse_args():
         Namespace: Parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Process a chain of triples.")
-    parser.add_argument('--data_size', type=int, default=20, help="Number of triples to process")
-    parser.add_argument('--depths', type=list, default=[2], help="Depth of the chain")
+    parser.add_argument('--data_size', type=int, default=500, help="Number of triples to process")
+    parser.add_argument('--depths', type=list, default=[2,3,4,5,6], help="Depth of the chain")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
     parser.add_argument('--model_name', type=str, default="gpt-5-mini-2025-08-07", help="Model name for the API")
     return parser.parse_args()
