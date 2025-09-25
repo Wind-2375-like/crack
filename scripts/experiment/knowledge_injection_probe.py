@@ -77,16 +77,28 @@ if __name__ == "__main__":
         args.api_key = api_config.get("api_key", None)
         if args.api_key is None:
             raise ValueError("API key not found in the configuration file.")
+        
+    effective_model_name = args.model_name
+    method_module_name = args.method
+    
+    if args.method == 'append_t':
+        if 'qwen-3' not in args.model_name:
+            print("❌ Error: The 'append_t' method is only compatible with 'qwen-3' models.")
+            sys.exit(1)
+        # Use the 'thinking' version of the model
+        effective_model_name += "-thinking"
+        # The underlying implementation is 'base' (or 'append_t' if you have the file)
+        method_module_name = 'append_t'
 
     # --- Initialize Model and Method ---
     chat_response_generator = ChatResponseGenerator(
-        model_name=translate_model_name(args.model_name),
+        model_name=translate_model_name(effective_model_name), # Use effective model name
         api_key=args.api_key
     )
 
     try:
         # Dynamically import the specified method's module
-        method_module = importlib.import_module(f"utils.methods.{args.method}")
+        method_module = importlib.import_module(f"utils.methods.{method_module_name}")
         MethodClass = getattr(method_module, 'Method')
         # This custom probe_item function will be used inside the method's run call
         method_instance = MethodClass(args, chat_response_generator)
