@@ -88,7 +88,6 @@ def update_pbar(processed_item, usage, processed_data_list, token_counts_dict, p
 
 if __name__ == "__main__":
     args = parse_args()
-    # Corrected assertion: raise error if scope is not positive
     assert args.knowledge_aggregation_scope >= 1 , "knowledge_aggregation_scope must be a positive integer (>= 1)."
 
     eval_dataset = ReasoningEvalDataset(
@@ -107,10 +106,25 @@ if __name__ == "__main__":
             raise ValueError("API key not found in the configuration file.")
         if args.ua is None:
             raise ValueError("User agent not found in the configuration file.")
+        
+    effective_model_name = args.model_name
+    method_module_name = args.method
+
+    if args.method == 'append_t':
+        if 'qwen-3' not in args.model_name:
+            print("❌ Error: The 'append_t' method is only compatible with 'qwen-3' models.")
+            sys.exit(1)
+        # Use the 'thinking' version of the model
+        effective_model_name += "-thinking"
+        # The underlying implementation is 'base' (or 'append_t' if you have the file)
+        method_module_name = 'base'
 
     token_counts = {'prompt': 0, 'completion': 0, 'total': 0}
     processed_data = []
-    chat_response_generator = ChatResponseGenerator(model_name=translate_model_name(args.model_name), api_key=args.api_key)
+    chat_response_generator = ChatResponseGenerator(
+        model_name=translate_model_name(effective_model_name),
+        api_key=args.api_key
+    )
 
     all_items_list = list(eval_dataset) # Convert dataset to list for consistent indexing and sizing
     dataset_size = len(all_items_list)
@@ -120,10 +134,10 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
     
     try:
-        if args.method == "all":
+        if method_module_name == "all":
             method_module = importlib.import_module(f"utils.methods.base")
         else:
-            method_module = importlib.import_module(f"utils.methods.{args.method}")
+            method_module = importlib.import_module(f"utils.methods.{method_module_name}")
         MethodClass = getattr(method_module, 'Method')
         method_instance = MethodClass(args, chat_response_generator)
     except (ImportError, AttributeError) as e:
