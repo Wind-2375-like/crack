@@ -10,7 +10,7 @@ def generate_commands(args):
 
     print("Generating knowledge probe evaluation commands...")
     for task, model in itertools.product(args.task_names, args.model_names):
-        commands.append(base_script + ["--task_name", task, "--model_name", model])
+        commands.append(base_script + ["--task_name", task, "--model_name", model, "--data_size", "500"])
 
     return commands
 
