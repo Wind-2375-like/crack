@@ -20,6 +20,7 @@ except ImportError:
 # --- Configuration ---
 MODEL_MEMORY_OVERRIDES = {
     "7b": 30,
+    "11b": 30,
     "default": 12,
 }
 GPU_HEADROOM_GB = 4
@@ -193,7 +194,7 @@ if __name__ == "__main__":
     parser.add_argument('--cpu-only-models', nargs='+', help='List of model names that are CPU-only (e.g., OpenAI models).')
     parser.add_argument('--task_names', nargs='+', default=["code", "math", "grow"], help='List of task names.')
     parser.add_argument('--max-workers', type=int, default=10, help='Maximum number of parallel processes.')
-    parser.add_argument('--max-retries', type=int, default=3, help='Max retries for ANY failed process.')
+    parser.add_argument('--max-retries', type=int, default=10000, help='Max retries for ANY failed process.')
     
     args = parser.parse_args()
     os.makedirs("logs", exist_ok=True)

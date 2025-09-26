@@ -44,8 +44,11 @@ class MetaVLlamaHandler(BaseModelHandler):
 
     def format_messages(self, messages):
         processed_messages = []
-        for role, content in messages:
-            processed_messages.append({"role": role, "content": content})
+        for role, content_string in messages:
+            formatted_content = [
+                {"type": "text", "text": content_string}
+            ]
+            processed_messages.append({"role": role, "content": formatted_content})
         return processed_messages
 
     def generate_response(self, formatted_input, **kwargs):
