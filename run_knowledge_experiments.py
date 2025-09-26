@@ -7,7 +7,7 @@ import os
 from collections import deque
 from threading import Thread
 from rich.console import Console
-from IPython.display import clear_output
+from IPython.display import display, clear_output
 
 
 # Third-party libraries - install with: pip install rich pynvml
@@ -191,16 +191,9 @@ def generate_dashboard_table(jobs, gpu_monitor: GpuMonitor) -> Table:
         )
     return table
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run knowledge probe scripts intelligently for CPU and GPU.")
-    parser.add_argument('--model_names', nargs='+', required=True, help='List of ALL model names to run.')
-    parser.add_argument('--cpu-only-models', nargs='+', help='List of model names that are CPU-only (e.g., OpenAI models).')
-    parser.add_argument('--task_names', nargs='+', default=["code", "math", "grow"], help='List of task names.')
-    parser.add_argument('--max-workers', type=int, default=10, help='Maximum number of parallel processes.')
-    parser.add_argument('--max-retries', type=int, default=3, help='Max retries for ANY failed process.')
-    parser.add_argument('--retry-delay', type=int, default=60, help='Seconds to wait before re-queueing a failed job.')
-
-    args = parser.parse_args()
+# NEW FUNCTION to contain all the main logic
+def run_scheduler(args):
+    """The main scheduler logic, now callable as a function."""
     os.makedirs("logs", exist_ok=True)
 
     pending_jobs, has_gpu_jobs = generate_commands(args)
@@ -209,10 +202,12 @@ if __name__ == "__main__":
     failed_jobs_waiting = []
 
     if not pending_jobs:
-        console.print("[yellow]No commands to run. Exiting.[/yellow]"); exit()
+        console.print("[yellow]No commands to run. Exiting.[/yellow]")
+        return # Use return instead of exit
 
     gpu_monitor = GpuMonitor() if has_gpu_jobs else None
 
+    # This print statement is now inside the function
     console.print(f"\n[bold]Starting scheduler for {len(pending_jobs)} jobs. Max workers: {args.max_workers}[/bold]")
     if gpu_monitor and gpu_monitor.is_active:
         console.print(f"GPU monitoring is ACTIVE. Total Memory: {gpu_monitor.total_gb:.2f} GB | Safety Headroom: {GPU_HEADROOM_GB} GB")
@@ -220,10 +215,9 @@ if __name__ == "__main__":
         console.print("GPU monitoring is INACTIVE. No GPU jobs requested or GPU not found.")
     time.sleep(2)
 
-    # --- MODIFIED BLOCK FOR COLAB ---
-    # Replace the `with Live(...)` context manager with a `try/finally` block
     try:
         while pending_jobs or running_jobs or failed_jobs_waiting:
+            # (The entire while loop logic remains exactly the same as before)
             # 1. Check for finished jobs
             for job in running_jobs[:]:
                 if job['process'].poll() is not None:
@@ -237,14 +231,12 @@ if __name__ == "__main__":
                             failed_jobs_waiting.append((time.time() + args.retry_delay, job))
                         else:
                             job['status'] = f"❌ Failed Permanently (Code: {job['process'].returncode})"
-
             # 2. Check waiting jobs
             for finish_time, job in failed_jobs_waiting[:]:
                 if time.time() >= finish_time:
                     failed_jobs_waiting.remove((finish_time, job))
                     job['status'] = f"⏳ Pending Retry"
                     pending_jobs.append(job)
-
             # 3. Try to launch a new job
             if pending_jobs and len(running_jobs) < args.max_workers:
                 next_job = pending_jobs[0]
@@ -254,26 +246,23 @@ if __name__ == "__main__":
                 elif gpu_monitor and gpu_monitor.is_active:
                     if gpu_monitor.free_gb > (next_job["required_mem"] + GPU_HEADROOM_GB):
                         can_launch = True
-                
                 if can_launch:
                     job_to_run = pending_jobs.popleft()
                     job_to_run['status'] = "🚀 Running"
                     log_dir = os.path.dirname(job_to_run['log_path'])
                     if log_dir: os.makedirs(log_dir, exist_ok=True)
                     with open(job_to_run['log_path'], 'w') as log_file:
-                        p = subprocess.Popen(
-                            job_to_run['cmd'], stdout=log_file, stderr=subprocess.STDOUT
-                        )
+                        p = subprocess.Popen(job_to_run['cmd'], stdout=log_file, stderr=subprocess.STDOUT)
                     job_to_run['process'] = p
                     running_jobs.append(job_to_run)
                     if not job_to_run['is_cpu'] and job_to_run['required_mem'] > 15:
                         time.sleep(15)
 
-            # 4. Clear the output and print the updated dashboard
+            # 4. Clear and display the dashboard
             clear_output(wait=True)
-            console.print(generate_dashboard_table(all_jobs, gpu_monitor))
-            time.sleep(2) # Refresh every 2 seconds
-
+            display(generate_dashboard_table(all_jobs, gpu_monitor))
+            time.sleep(2)
+            
     except KeyboardInterrupt:
         console.print("\n[bold yellow]Interrupted by user. Terminating running processes...[/bold yellow]")
         for job in running_jobs:
@@ -281,5 +270,21 @@ if __name__ == "__main__":
                 job['process'].terminate()
     finally:
         if gpu_monitor: gpu_monitor.stop()
+        clear_output(wait=True)
+        display(generate_dashboard_table(all_jobs, gpu_monitor))
         console.print("\n🎉 All experiments complete.")
-    # --- END OF MODIFIED BLOCK ---
+
+
+# NEW, smaller if __name__ == "__main__" block for command-line use
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run knowledge probe scripts intelligently for CPU and GPU.")
+    parser.add_argument('--model_names', nargs='+', required=True, help='List of ALL model names to run.')
+    parser.add_argument('--cpu-only-models', nargs='+', help='List of model names that are CPU-only (e.g., OpenAI models).')
+    parser.add_argument('--task_names', nargs='+', default=["code", "math", "grow"], help='List of task names.')
+    parser.add_argument('--max-workers', type=int, default=10, help='Maximum number of parallel processes.')
+    parser.add_argument('--max-retries', type=int, default=10000, help='Max retries for ANY failed process.')
+    parser.add_argument('--retry-delay', type=int, default=60, help='Seconds to wait before re-queueing a failed job.')
+    
+    args = parser.parse_args()
+    # Call the main function
+    run_scheduler(args)
