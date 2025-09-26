@@ -4,6 +4,7 @@ import itertools
 import subprocess
 import time
 import re
+import os
 from collections import deque
 from threading import Thread
 
@@ -137,12 +138,19 @@ def generate_dashboard_table(jobs, gpu_monitor: GpuMonitor) -> Table:
         elif "Failed" in job['status']: status_style = "red"
         elif "Success" in job['status']: status_style = "bright_green"
 
+        # --- THIS IS THE FIX ---
+        # Conditionally format the status text only if a style is set.
+        status_text = job['status']
+        if status_style:
+            status_text = f"[{status_style}]{status_text}[/{status_style}]"
+        # --- END OF FIX ---
+
         table.add_row(
             str(i + 1),
             job['task'],
             job['model'],
             f"{job['required_mem']:.1f}",
-            f"[{status_style}]{job['status']}[/{status_style}]",
+            status_text, # Use the corrected variable here
             str(job['process'].pid) if job['process'] else "-",
             str(job['retries']),
             job['log_path']
@@ -159,6 +167,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # --- Setup ---
+    # We no longer need to create the 'logs' dir here, it will be handled in the loop.
     pending_jobs = generate_commands(args)
     all_jobs = list(pending_jobs) # A persistent list for the dashboard
     running_jobs = []
@@ -171,6 +180,8 @@ if __name__ == "__main__":
     
     console.print(f"\n[bold]Starting scheduler for {len(pending_jobs)} jobs. Max workers: {args.max_workers}[/bold]")
     console.print(f"Total GPU Memory: {gpu_monitor.total_gb:.2f} GB | Safety Headroom: {GPU_HEADROOM_GB} GB")
+    # You can add this line for your own debugging to be 100% sure
+    console.print(f"Script CWD: [dim]{os.getcwd()}[/dim]")
     time.sleep(2)
 
     try:
@@ -196,10 +207,16 @@ if __name__ == "__main__":
                     next_job = pending_jobs[0] # Peek at the next job
                     required_mem = next_job["required_mem"]
                     
-                    # Check if there's enough VRAM for the next job
                     if gpu_monitor.free_gb > (required_mem + GPU_HEADROOM_GB):
                         job_to_run = pending_jobs.popleft()
                         job_to_run['status'] = "🚀 Running"
+                        
+                        # --- THIS IS THE FIX ---
+                        # Ensure the specific directory for this log file exists right before writing.
+                        log_directory = os.path.dirname(job_to_run['log_path'])
+                        if log_directory:
+                            os.makedirs(log_directory, exist_ok=True)
+                        # --- END OF FIX ---
                         
                         with open(job_to_run['log_path'], 'w') as log_file:
                             p = subprocess.Popen(
@@ -210,7 +227,6 @@ if __name__ == "__main__":
                         job_to_run['process'] = p
                         running_jobs.append(job_to_run)
                         
-                        # Wait a bit after launching a large model to let VRAM usage stabilize
                         if required_mem > 15:
                             time.sleep(15)
 
