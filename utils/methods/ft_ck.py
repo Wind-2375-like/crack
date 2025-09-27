@@ -224,6 +224,7 @@ def task_func(dealer_sales_data):
             gradient_checkpointing=True,
             logging_steps=1,
             label_names=["labels"],
+            report_to="none",
         )
 
         trainer = Trainer(

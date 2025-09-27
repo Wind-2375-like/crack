@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument('--method', type=str, default="base", help="Method to use for complex reasoning amid conflicting knowledge")
     parser.add_argument('--temperature', type=float, default=0.7, help="Temperature for the model")
     parser.add_argument('--top_p', type=float, default=0.7, help="Top-p sampling for the model")
-    parser.add_argument('--max_tokens', type=int, default=512, help="Maximum tokens for the model")
+    parser.add_argument('--max_tokens', type=int, default=4096, help="Maximum tokens for the model")
     parser.add_argument('--num_responses', type=int, default=1, help="Number of responses to generate")
     return parser.parse_args()
 
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     assert args.knowledge_aggregation_scope >= 1 , "knowledge_aggregation_scope must be a positive integer (>= 1)."
 
     eval_dataset = ReasoningEvalDataset(
-        raw_path=f'data/{args.task_name}/test_{args.data_size}_.pkl',
+        raw_path=f'data/{args.task_name}/test_{args.data_size}.pkl',
         probe_path=f'data/eval_results/{args.task_name}/probe_evaluated/test_{args.data_size}_{args.model_name}.pkl',
     )
     
