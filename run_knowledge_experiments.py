@@ -6,14 +6,19 @@ import re
 import os
 from collections import deque
 from threading import Thread
-from rich.console import Console
-from IPython.display import display, clear_output
-
 
 # Third-party libraries - install with: pip install rich pynvml
 from rich.live import Live
 from rich.table import Table
 from rich.console import Console
+
+# IPython imports are now optional
+try:
+    from IPython.display import display, clear_output
+    IS_IPYTHON = True
+except ImportError:
+    IS_IPYTHON = False
+
 try:
     import pynvml
     HAS_PYNVML = True
@@ -192,22 +197,18 @@ def generate_dashboard_table(jobs, gpu_monitor: GpuMonitor) -> Table:
     return table
 
 # NEW FUNCTION to contain all the main logic
-def run_scheduler(args):
-    """The main scheduler logic, now callable as a function."""
+def run_scheduler(args, is_notebook_run=False):
+    """The main scheduler logic, with a toggle for notebook vs. terminal display."""
+    # This initial setup is the same for both modes
     os.makedirs("logs", exist_ok=True)
-
     pending_jobs, has_gpu_jobs = generate_commands(args)
     all_jobs = list(pending_jobs)
-    running_jobs = []
-    failed_jobs_waiting = []
+    running_jobs, failed_jobs_waiting = [], []
 
     if not pending_jobs:
-        console.print("[yellow]No commands to run. Exiting.[/yellow]")
-        return # Use return instead of exit
+        console.print("[yellow]No commands to run. Exiting.[/yellow]"); return
 
     gpu_monitor = GpuMonitor() if has_gpu_jobs else None
-
-    # This print statement is now inside the function
     console.print(f"\n[bold]Starting scheduler for {len(pending_jobs)} jobs. Max workers: {args.max_workers}[/bold]")
     if gpu_monitor and gpu_monitor.is_active:
         console.print(f"GPU monitoring is ACTIVE. Total Memory: {gpu_monitor.total_gb:.2f} GB | Safety Headroom: {GPU_HEADROOM_GB} GB")
@@ -215,64 +216,58 @@ def run_scheduler(args):
         console.print("GPU monitoring is INACTIVE. No GPU jobs requested or GPU not found.")
     time.sleep(2)
 
-    try:
-        while pending_jobs or running_jobs or failed_jobs_waiting:
-            # (The entire while loop logic remains exactly the same as before)
-            # 1. Check for finished jobs
-            for job in running_jobs[:]:
-                if job['process'].poll() is not None:
-                    running_jobs.remove(job)
-                    if job['process'].returncode == 0:
-                        job['status'] = "✅ Success"
-                    else:
-                        if job['retries'] < args.max_retries:
-                            job['retries'] += 1
-                            job['status'] = f"🔁 Failed, waiting {args.retry_delay}s to retry ({job['retries']}/{args.max_retries})"
-                            failed_jobs_waiting.append((time.time() + args.retry_delay, job))
-                        else:
-                            job['status'] = f"❌ Failed Permanently (Code: {job['process'].returncode})"
-            # 2. Check waiting jobs
-            for finish_time, job in failed_jobs_waiting[:]:
-                if time.time() >= finish_time:
-                    failed_jobs_waiting.remove((finish_time, job))
-                    job['status'] = f"⏳ Pending Retry"
-                    pending_jobs.append(job)
-            # 3. Try to launch a new job
-            if pending_jobs and len(running_jobs) < args.max_workers:
-                next_job = pending_jobs[0]
-                can_launch = False
-                if next_job['is_cpu']:
-                    can_launch = True
-                elif gpu_monitor and gpu_monitor.is_active:
-                    if gpu_monitor.free_gb > (next_job["required_mem"] + GPU_HEADROOM_GB):
-                        can_launch = True
-                if can_launch:
-                    job_to_run = pending_jobs.popleft()
-                    job_to_run['status'] = "🚀 Running"
-                    log_dir = os.path.dirname(job_to_run['log_path'])
-                    if log_dir: os.makedirs(log_dir, exist_ok=True)
-                    with open(job_to_run['log_path'], 'w') as log_file:
-                        p = subprocess.Popen(job_to_run['cmd'], stdout=log_file, stderr=subprocess.STDOUT)
-                    job_to_run['process'] = p
-                    running_jobs.append(job_to_run)
-                    if not job_to_run['is_cpu'] and job_to_run['required_mem'] > 15:
-                        time.sleep(15)
+    # The core logic loop is now inside both branches of the if/else
+    def main_loop_logic():
+        # 1. Check for finished jobs
+        for job in running_jobs[:]:
+            if job['process'].poll() is not None:
+                running_jobs.remove(job)
+                if job['process'].returncode == 0: job['status'] = "✅ Success"
+                else:
+                    if job['retries'] < args.max_retries:
+                        job['retries'] += 1; job['status'] = f"🔁 Failed, waiting {args.retry_delay}s to retry ({job['retries']}/{args.max_retries})"
+                        failed_jobs_waiting.append((time.time() + args.retry_delay, job))
+                    else: job['status'] = f"❌ Failed Permanently (Code: {job['process'].returncode})"
+        # 2. Check waiting jobs
+        for finish_time, job in failed_jobs_waiting[:]:
+            if time.time() >= finish_time:
+                failed_jobs_waiting.remove((finish_time, job)); job['status'] = f"⏳ Pending Retry"; pending_jobs.append(job)
+        # 3. Try to launch a new job
+        if pending_jobs and len(running_jobs) < args.max_workers:
+            next_job = pending_jobs[0]; can_launch = False
+            if next_job['is_cpu']: can_launch = True
+            elif gpu_monitor and gpu_monitor.is_active and gpu_monitor.free_gb > (next_job["required_mem"] + GPU_HEADROOM_GB): can_launch = True
+            if can_launch:
+                job_to_run = pending_jobs.popleft(); job_to_run['status'] = "🚀 Running"
+                log_dir = os.path.dirname(job_to_run['log_path'])
+                if log_dir: os.makedirs(log_dir, exist_ok=True)
+                with open(job_to_run['log_path'], 'w') as log_file:
+                    p = subprocess.Popen(job_to_run['cmd'], stdout=log_file, stderr=subprocess.STDOUT)
+                job_to_run['process'] = p; running_jobs.append(job_to_run)
+                if not job_to_run['is_cpu'] and job_to_run['required_mem'] > 15: time.sleep(15)
+        
+        return not (pending_jobs or running_jobs or failed_jobs_waiting)
 
-            # 4. Clear and display the dashboard
-            clear_output(wait=True)
-            display(generate_dashboard_table(all_jobs, gpu_monitor))
-            time.sleep(2)
-            
-    except KeyboardInterrupt:
-        console.print("\n[bold yellow]Interrupted by user. Terminating running processes...[/bold yellow]")
-        for job in running_jobs:
-            if job['process']:
-                job['process'].terminate()
-    finally:
-        if gpu_monitor: gpu_monitor.stop()
-        clear_output(wait=True)
-        display(generate_dashboard_table(all_jobs, gpu_monitor))
-        console.print("\n🎉 All experiments complete.")
+    # --- HERE IS THE TOGGLE ---
+    if is_notebook_run:
+        if not IS_IPYTHON:
+            console.print("[bold red]Error: Notebook mode selected, but IPython is not available.[/bold red]"); return
+        try:
+            while True:
+                if main_loop_logic(): break
+                clear_output(wait=True); display(generate_dashboard_table(all_jobs, gpu_monitor)); time.sleep(2)
+        finally:
+            if gpu_monitor: gpu_monitor.stop()
+            clear_output(wait=True); display(generate_dashboard_table(all_jobs, gpu_monitor)); console.print("\n🎉 All experiments complete.")
+    else: # Terminal mode
+        try:
+            with Live(generate_dashboard_table(all_jobs, gpu_monitor), refresh_per_second=2, console=console) as live:
+                while True:
+                    if main_loop_logic(): break
+                    live.update(generate_dashboard_table(all_jobs, gpu_monitor)); time.sleep(1)
+        finally:
+            if gpu_monitor: gpu_monitor.stop()
+            console.print("\n🎉 All experiments complete.")
 
 
 # NEW, smaller if __name__ == "__main__" block for command-line use
