@@ -38,5 +38,9 @@ class OpenAIChatClient(BaseChatClient):
                 model=model_name,
                 messages=self._process_message(messages),
                 response_format=response_format,
+                top_p=top_p,
+                frequency_penalty=frequency_penalty,
+                presence_penalty=presence_penalty,
+                n=n,
                 max_completion_tokens=max_tokens,
             )
