@@ -69,26 +69,38 @@ def get_required_memory(model_name: str) -> float:
         numerical_size = float(numerical_match.group(1)); return 4.0 * numerical_size
     return MODEL_MEMORY_OVERRIDES.get("default", 12)
 
-# --- MODIFIED: `generate_commands` for reasoning experiments ---
 def generate_commands(args):
-    """Generates and sorts reasoning experiment commands."""
+    """Generates and sorts reasoning experiment commands with corrected logic."""
     commands = []
-    # The target script is now knowledge_injection.py
     base_script = ["python", "scripts/experiment/knowledge_injection.py"]
     cpu_models_set = set(args.cpu_only_models or [])
     has_gpu_jobs = False
 
     console.print("Generating and classifying reasoning commands...")
-    
-    # Iterate over all combinations of tasks, models, methods, and scopes
+
+    # --- CORRECTED LOGIC ---
+    # First, determine which methods and scopes to iterate over based on the inject_knowledge flag.
+    if args.inject_knowledge:
+        # If injecting, use the full lists provided by the user.
+        methods_to_run = args.methods
+        scopes_to_run = args.knowledge_aggregation_scopes
+    else:
+        # For baseline runs, FORCE the method to 'base' and scope to 1.
+        console.print("[yellow]Knowledge injection is OFF. Forcing method='base' and scope=1 for baseline runs.[/yellow]")
+        methods_to_run = ['base']
+        scopes_to_run = [1]
+    # --- END OF CORRECTION ---
+
+    # Now, the loop correctly iterates over the determined lists.
     for task, model, method, scope in itertools.product(
-        args.task_names, args.model_names, args.methods, args.knowledge_aggregation_scopes
+        args.task_names, args.model_names, methods_to_run, scopes_to_run
     ):
         is_cpu = model in cpu_models_set
         required_mem = 0 if is_cpu else get_required_memory(model)
         if not is_cpu:
             has_gpu_jobs = True
-            
+
+        # Build the command. Method and scope are now always passed for consistency.
         cmd_list = base_script + [
             "--task_name", task,
             "--model_name", model,
@@ -96,11 +108,10 @@ def generate_commands(args):
             "--knowledge_aggregation_scope", str(scope)
         ]
         
-        # Add the --inject-knowledge flag only if it was passed to the runner
+        # The inject_knowledge flag is still added conditionally.
         if args.inject_knowledge:
             cmd_list.append("--inject_knowledge")
         
-        # Create a more descriptive log path
         log_suffix = "injected" if args.inject_knowledge else "original"
         log_path = f"logs/reasoning_{task}_{model}_{method}_{scope}_{log_suffix}.log"
         
@@ -114,6 +125,7 @@ def generate_commands(args):
         job_type = "[bold blue]CPU[/bold blue]" if is_cpu else f"[bold cyan]{required_mem:.1f} GB[/bold cyan]"
         console.print(f"  - [magenta]{task}[/magenta]/[yellow]{model}[/yellow]/[green]{method}[/green]/[bold]scope={scope}[/bold] -> {job_type}")
 
+    # The old deduplication step is no longer needed as the loop logic is now correct.
     commands.sort(key=lambda c: c['required_mem'])
     return deque(commands), has_gpu_jobs
 

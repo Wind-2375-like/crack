@@ -148,7 +148,7 @@ if __name__ == "__main__":
     with tqdm(total=dataset_size, desc="Processing items") as pbar: # Use dataset_size for tqdm
         if not args.inject_knowledge:
             for i, item in enumerate(all_items_list): # Iterate over all_items_list
-                processed_item, usage = method_instance.run(item, knowledge_to_inject_str="")
+                processed_item, usage = method_instance.run(item, [])
                 update_pbar(processed_item, usage, processed_data, token_counts, pbar, args.model_name)
         else:
             scope = args.knowledge_aggregation_scope

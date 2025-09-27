@@ -4,6 +4,9 @@ from peft import get_peft_model, LoraConfig, TaskType
 from transformers import Trainer, TrainingArguments
 from torch.utils.data import Dataset
 import torch
+from rich.console import Console
+
+console = Console()
 
 
 class KnowledgeDataset(Dataset):
@@ -192,20 +195,26 @@ def task_func(dealer_sales_data):
     def apply_ftck_to_model(self, knowledge_to_inject):
         """
         Applies Fine-tuning to the model using the provided knowledge.
-        Args:
-            knowledge_to_inject (list): Pre-formatted list of knowledge to inject.
         """
         base_model = self.chat_response_generator.client.handler.pipeline.model
         tokenizer = self.chat_response_generator.client.handler.pipeline.tokenizer
         tokenizer.pad_token = tokenizer.eos_token
         
-        # Instantiate the dataset
         train_dataset = KnowledgeDataset(tokenizer, knowledge_to_inject)
+
+        # Define different target modules for different model families
+        model_name_lower = self.args.model_name.lower()
+        if "qwen" in model_name_lower:
+            target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
+        elif "llama" in model_name_lower:
+            target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
+        else: # Default for other models
+            target_modules = ["q_proj", "k_proj", "v_proj"]
 
         lora_config = LoraConfig(
             r=16,
             lora_alpha=16,
-            target_modules=["q_proj", "k_proj", "v_proj"],
+            target_modules=target_modules, # Use the adaptive list
             lora_dropout=0.1,
             task_type=TaskType.CAUSAL_LM
         )
@@ -215,14 +224,14 @@ def task_func(dealer_sales_data):
         peft_model.config.use_cache = False
         
         training_args = TrainingArguments(
-            output_dir="logs/",
+            output_dir="logs/ft_ck_checkpoints",
             per_device_train_batch_size=1,
             num_train_epochs=4,
             learning_rate=2e-3,
             fp16=True,
             save_strategy="no",
             gradient_checkpointing=True,
-            logging_steps=1,
+            logging_steps=10, # Log less frequently to reduce clutter
             label_names=["labels"],
             report_to="none",
         )
@@ -233,28 +242,27 @@ def task_func(dealer_sales_data):
             train_dataset=train_dataset,
         )
 
-        trainer.train()
+        train_result = trainer.train()
+        console.print(f"[bold green]✅ FT-CK training complete. Final Loss: {train_result.training_loss:.4f}[/bold green]")
         peft_model.eval()
         
         return peft_model
     
     def edit(self, knowledge_to_inject):
-        # Save the model state before editing
-        self.original_model_state = deepcopy(self.chat_response_generator.client.handler.pipeline.model.state_dict())
+        self.original_model = self.chat_response_generator.client.handler.pipeline.model
         
-        # Apply the fine-tuning edit
         if knowledge_to_inject:
             trained_peft_model = self.apply_ftck_to_model(knowledge_to_inject)
             self.chat_response_generator.client.handler.pipeline.model = trained_peft_model
 
     def restore(self):
-        # Restore the model from the saved state
         usage = self.chat_response_generator.get_usage()
-        if self.original_model_state:
-            self.chat_response_generator.client.handler.pipeline.model.load_state_dict(self.original_model_state)
-            self.original_model_state = None # Clear the state
+        if hasattr(self, 'original_model') and self.original_model is not None:
+            self.chat_response_generator.client.handler.pipeline.model = self.original_model
+            self.original_model = None # Clear the saved object
             torch.cuda.empty_cache()
-        self.chat_response_generator._usage = usage
+
+        self.chat_response_generator._usage = {} # Reset usage for next batch
         return usage
     
     def run(self, item, knowledge_to_inject=[], probe=False):

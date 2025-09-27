@@ -244,6 +244,19 @@ def task_func(dealer_sales_data):
             raise NotImplementedError(f"Task {self.args.task_name} is not implemented.")
 
         return prepared_user_prompt, prepared_system_prompt
+
+    def edit(self, knowledge_to_inject):
+        """The base method does not edit the model, so this is a no-op."""
+        pass
+
+    def restore(self):
+        """
+        For the base method, restore returns the accumulated token usage from the
+        runs in the batch and resets the generator's internal counter for the next batch.
+        """
+        # Get the usage accumulated during the .run() calls in this batch.
+        usage = self.chat_response_generator.get_usage()
+        return usage
     
     def run(self, item, knowledge_to_inject=[], probe=False):
         """
