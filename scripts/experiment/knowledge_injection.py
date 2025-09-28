@@ -216,10 +216,9 @@ if __name__ == "__main__":
                     
                 batch_usage = method_instance.restore()
                 
-                translated_model_name = translate_model_name(args.model_name)
-                batch_prompt = batch_usage[translated_model_name]["prompt_tokens"]
-                batch_completion = batch_usage[translated_model_name]["completion_tokens"]
-                batch_total = batch_usage[translated_model_name]["total_tokens"]
+                batch_prompt = batch_usage[translate_model_name(effective_model_name)]["prompt_tokens"]
+                batch_completion = batch_usage[translate_model_name(effective_model_name)]["completion_tokens"]
+                batch_total = batch_usage[translate_model_name(effective_model_name)]["total_tokens"]
 
                 token_counts['prompt'] += batch_prompt
                 token_counts['completion'] += batch_completion
