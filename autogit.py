@@ -89,7 +89,7 @@ def main():
             
             # Wait for 1 hour (3600 seconds) before the next run
             sleep_duration = 900
-            print(f"\n--- Sleeping for 1 hour. Next run at approximately {datetime.fromtimestamp(time.time() + sleep_duration).strftime('%H:%M:%S')} ---")
+            print(f"\n--- Sleeping for 15 minutes. Next run at approximately {datetime.fromtimestamp(time.time() + sleep_duration).strftime('%H:%M:%S')} ---")
             time.sleep(sleep_duration)
 
         except KeyboardInterrupt:
