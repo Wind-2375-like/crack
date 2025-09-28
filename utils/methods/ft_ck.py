@@ -227,8 +227,10 @@ def task_func(dealer_sales_data):
             output_dir="logs/ft_ck_checkpoints",
             per_device_train_batch_size=1,
             num_train_epochs=4,
-            learning_rate=2e-3,
+            learning_rate=2e-4,         
             fp16=True,
+            max_grad_norm=1.0,          
+            warmup_ratio=0.1,           
             save_strategy="no",
             gradient_checkpointing=True,
             logging_steps=10, # Log less frequently to reduce clutter
