@@ -88,7 +88,7 @@ def main():
             run_git_workflow()
             
             # Wait for 1 hour (3600 seconds) before the next run
-            sleep_duration = 3600
+            sleep_duration = 900
             print(f"\n--- Sleeping for 1 hour. Next run at approximately {datetime.fromtimestamp(time.time() + sleep_duration).strftime('%H:%M:%S')} ---")
             time.sleep(sleep_duration)
 
