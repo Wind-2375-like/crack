@@ -243,10 +243,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run reasoning experiments intelligently for CPU and GPU.")
     
     # --- Experiment Arguments ---
-    parser.add_argument('--task_names', nargs='+', default=["grow"], help='List of task names.')
+    parser.add_argument('--task_names', nargs='+', default=["grow", "code", "math"], help='List of task names.')
     parser.add_argument('--model_names', nargs='+', required=True, help='List of ALL model names to run.')
     parser.add_argument('--methods', nargs='+', default=["base"], help='List of methods to test (e.g., base, rome, append_t).')
-    parser.add_argument('--knowledge_aggregation_scopes', nargs='+', type=int, default=[1], help='List of aggregation scopes to test.')
+    parser.add_argument('--knowledge_aggregation_scopes', nargs='+', type=int, default=[1, 10, 100, 500], help='List of aggregation scopes to test.')
+    parser.add_argument('--data_size', type=int, default=500, help="Size of the dataset to process in each experiment.")
     parser.add_argument('--inject-knowledge', action='store_true', help='Flag to run with knowledge injection. If not set, runs original baselines.')
     parser.add_argument('--cpu-only-models', nargs='+', help='List of model names that are CPU-only (e.g., OpenAI models).')
     
