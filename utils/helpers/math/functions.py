@@ -227,7 +227,7 @@ Generated Output:
     # Verify and correct each probe (knowledge, question, answer) triple
     corrected_probe_questions = []
     for pair in probe_questions:
-        answer, correct = verify_and_filter_answer(
+        _, correct = verify_and_filter_answer(
             pair['question'], 
             pair['answer'], 
             chat_response_generator
