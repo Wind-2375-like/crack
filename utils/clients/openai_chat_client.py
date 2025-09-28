@@ -35,9 +35,9 @@ class OpenAIChatClient(BaseChatClient):
         if model_name == "gpt-4.1-mini":
             common_params['max_tokens'] = max_tokens
             common_params['temperature'] = temperature
-            common_params["top_p"] = top_p,
-            common_params["frequency_penalty"] = frequency_penalty,
-            common_params["presence_penalty"] = presence_penalty,
+            common_params["top_p"] = top_p
+            common_params["frequency_penalty"] = frequency_penalty
+            common_params["presence_penalty"] = presence_penalty
         else:
             common_params['max_completion_tokens'] = max_tokens
 
