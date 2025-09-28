@@ -5,6 +5,7 @@ import time
 import re
 import os
 from collections import deque
+import pickle
 from threading import Thread
 
 # Third-party libraries - install with: pip install rich pynvml
@@ -78,20 +79,22 @@ def generate_commands(args):
 
     console.print("Generating and classifying reasoning commands...")
 
-    # --- CORRECTED LOGIC ---
-    # First, determine which methods and scopes to iterate over based on the inject_knowledge flag.
     if args.inject_knowledge:
-        # If injecting, use the full lists provided by the user.
         methods_to_run = args.methods
         scopes_to_run = args.knowledge_aggregation_scopes
     else:
-        # For baseline runs, FORCE the method to 'base' and scope to 1.
         console.print("[yellow]Knowledge injection is OFF. Forcing method='base' and scope=1 for baseline runs.[/yellow]")
         methods_to_run = ['base']
         scopes_to_run = [1]
-    # --- END OF CORRECTION ---
+        
+    try:
+        sample_raw_path = f'data/{args.task_names[0]}/test_{args.data_size}.pkl'
+        with open(sample_raw_path, 'rb') as f:
+            total_data_size = len(pickle.load(f))
+    except (FileNotFoundError, IndexError):
+        console.print(f"[bold red]Warning: Could not find sample data file to determine total size. Using data_size arg.[/bold red]")
+        total_data_size = args.data_size
 
-    # Now, the loop correctly iterates over the determined lists.
     for task, model, method, scope in itertools.product(
         args.task_names, args.model_names, methods_to_run, scopes_to_run
     ):
@@ -100,32 +103,44 @@ def generate_commands(args):
         if not is_cpu:
             has_gpu_jobs = True
 
-        # Build the command. Method and scope are now always passed for consistency.
         cmd_list = base_script + [
+            "--data_size", str(args.data_size), # Pass data_size to worker
             "--task_name", task,
             "--model_name", model,
             "--method", method,
             "--knowledge_aggregation_scope", str(scope)
         ]
         
-        # The inject_knowledge flag is still added conditionally.
         if args.inject_knowledge:
             cmd_list.append("--inject_knowledge")
         
         log_suffix = "injected" if args.inject_knowledge else "original"
         log_path = f"logs/reasoning_{task}_{model}_{method}_{scope}_{log_suffix}.log"
         
+        output_dir = f'data/eval_results/{task}/injection/'
+        output_filename = f"{'original' if not args.inject_knowledge else method}_{args.data_size}_{model}_{scope}.pkl"
+        output_path = os.path.join(output_dir, output_filename)
+        
+        status = "⏳ Pending"
+        if os.path.exists(output_path):
+            try:
+                with open(output_path, 'rb') as f:
+                    existing_data = pickle.load(f)
+                if len(existing_data) >= total_data_size:
+                    status = "✅ Skipped (Complete)"
+            except (pickle.UnpicklingError, EOFError):
+                 pass
+        
         commands.append({
             "cmd": cmd_list, "task": task, "model": model, "method": method, "scope": scope,
             "required_mem": required_mem, "is_cpu": is_cpu,
-            "status": "⏳ Pending", "process": None, "retries": 0,
+            "status": status, "process": None, "retries": 0,
             "log_path": log_path
         })
         
         job_type = "[bold blue]CPU[/bold blue]" if is_cpu else f"[bold cyan]{required_mem:.1f} GB[/bold cyan]"
         console.print(f"  - [magenta]{task}[/magenta]/[yellow]{model}[/yellow]/[green]{method}[/green]/[bold]scope={scope}[/bold] -> {job_type}")
 
-    # The old deduplication step is no longer needed as the loop logic is now correct.
     commands.sort(key=lambda c: c['required_mem'])
     return deque(commands), has_gpu_jobs
 
@@ -165,8 +180,10 @@ def generate_dashboard_table(jobs, gpu_monitor: GpuMonitor) -> Table:
 def run_scheduler(args, is_notebook_run=False):
     # This function is long, but its internal logic is identical to the other script.
     os.makedirs("logs", exist_ok=True)
-    pending_jobs, has_gpu_jobs = generate_commands(args)
-    all_jobs = list(pending_jobs)
+    pending_jobs_all, has_gpu_jobs = generate_commands(args)
+    all_jobs = list(pending_jobs_all) # Keep all for dashboard view
+    # The actual queue only contains jobs that are not already complete
+    pending_jobs = deque([job for job in all_jobs if job['status'] != "✅ Skipped (Complete)"])
     running_jobs, failed_jobs_waiting = [], []
     if not pending_jobs: console.print("[yellow]No commands to run. Exiting.[/yellow]"); return
     gpu_monitor = GpuMonitor() if has_gpu_jobs else None

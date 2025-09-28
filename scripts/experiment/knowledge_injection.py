@@ -107,6 +107,20 @@ if __name__ == "__main__":
         if args.ua is None:
             raise ValueError("User agent not found in the configuration file.")
         
+    # Setup for Resume Functionality
+    output_dir = f'data/eval_results/{args.task_name}/injection/'
+    os.makedirs(output_dir, exist_ok=True)
+    output_file_path = os.path.join(output_dir, f"{'original' if not args.inject_knowledge else args.method}_{args.data_size}_{args.model_name}_{args.knowledge_aggregation_scope}.pkl")
+
+    processed_data = []
+    start_index = 0
+    if os.path.exists(output_file_path):
+        print(f"--- Resuming from checkpoint: {output_file_path} ---")
+        with open(output_file_path, 'rb') as f:
+            processed_data = pickle.load(f)
+        start_index = len(processed_data)
+        print(f"--- Found {start_index} items already processed. Resuming... ---")
+        
     effective_model_name = args.model_name
     method_module_name = args.method
 
@@ -120,7 +134,6 @@ if __name__ == "__main__":
         method_module_name = 'base'
 
     token_counts = {'prompt': 0, 'completion': 0, 'total': 0}
-    processed_data = []
     chat_response_generator = ChatResponseGenerator(
         model_name=translate_model_name(effective_model_name),
         api_key=args.api_key
@@ -144,12 +157,18 @@ if __name__ == "__main__":
         print(f"❌ Error: Could not load the method '{args.method}'.")
         print(f"Ensure 'methods/{args.method}.py' exists and contains a class named 'Method' that inherits from RootExperimentMethod.")
         sys.exit(1)
+        
+    # Modify the main data list to only include unprocessed items
+    items_to_process = all_items_list[start_index:]
 
-    with tqdm(total=dataset_size, desc="Processing items") as pbar: # Use dataset_size for tqdm
+    with tqdm(total=dataset_size, initial=start_index, desc="Processing items") as pbar:
         if not args.inject_knowledge:
-            for i, item in enumerate(all_items_list): # Iterate over all_items_list
+            for item in items_to_process:
                 processed_item, usage = method_instance.run(item, [])
                 update_pbar(processed_item, usage, processed_data, token_counts, pbar, args.model_name)
+                # Incremental save
+                with open(output_file_path, 'wb') as f:
+                    pickle.dump(processed_data, f)
         else:
             scope = args.knowledge_aggregation_scope
             
@@ -162,6 +181,19 @@ if __name__ == "__main__":
                 # Items from which knowledge is extracted for the current conceptual group
                 items_for_knowledge_extraction = all_items_list[group_start_idx:group_end_idx]
                 raw_items = raw_dataset[group_start_idx:group_end_idx]
+                
+                # Determine which items in *this specific batch* still need processing
+                current_batch_items_to_process = []
+                local_start_index = max(0, start_index - group_start_idx)
+
+                # Directly slice the list to get only the items that still need processing.
+                current_batch_items_to_process = items_for_knowledge_extraction[local_start_index:]
+                        
+                if not current_batch_items_to_process:
+                    # This batch is already fully processed, but we might need to update pbar
+                    pbar.update(len(items_for_knowledge_extraction))
+                    continue
+                        
                 if args.method != "all":
                     current_knowledge_to_inject = extract_required_unknown_knowledge(items_for_knowledge_extraction, raw_items)
                 else:
@@ -172,9 +204,14 @@ if __name__ == "__main__":
                 
                 # Process each item within this conceptual group using the extracted knowledge
                 # The items_for_knowledge_extraction list itself contains the items to process for this group
-                for item_to_process in items_for_knowledge_extraction:
+                for item_to_process in current_batch_items_to_process:
                     processed_item, _ = method_instance.run(item_to_process, current_knowledge_to_inject)
                     processed_data.append(processed_item)
+                    
+                    # Incremental save after each item
+                    with open(output_file_path, 'wb') as f:
+                        pickle.dump(processed_data, f)
+                    
                     pbar.update(1)
                     
                 batch_usage = method_instance.restore()
