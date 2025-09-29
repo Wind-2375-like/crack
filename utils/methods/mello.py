@@ -559,6 +559,22 @@ Answer:"""
             history += f"Subquestion: {subquestion}\nGenerated Answer: {answer}\n"
             
         return knowledge_to_inject_str.strip()
+
+    def edit(self, knowledge_to_inject):
+        """The Mello method does not perform in-place model editing like FT-CK,
+           so this is a no-op, just like the base method."""
+        pass
+
+    def restore(self):
+        """
+        For Mello, restore returns the accumulated token usage from the
+        runs in the batch and resets the generator's internal counter for the next batch.
+        """
+        # Get the usage accumulated during the .run() calls in this batch.
+        usage = self.chat_response_generator.get_usage()
+        # Reset the usage counter for the next batch.
+        self.chat_response_generator._usage = {}
+        return usage
     
     def run(self, item, knowledge_to_inject=[], probe=False):
         """
