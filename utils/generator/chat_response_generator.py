@@ -41,7 +41,7 @@ class ChatResponseGenerator:
         elif self.client_type == "together":
             self.client = TogetherChatClient(api_key=api_key.get("togetherai_api_key", None))
         elif self.client_type == "local":
-            login(token=api_key.get("huggingface_api_key", None))
+            # login(token=api_key.get("huggingface_api_key", None))
             self.client = LocalChatClient(model_name=model_name)
             
         self._usage = {}
