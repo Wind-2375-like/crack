@@ -37,7 +37,9 @@ class Method(RootExperimentMethod):
             query_emb = self.mean_pooling(outputs[0], inputs['attention_mask']).cpu()
         sim = (query_emb @ fact_embs.T)[0]
         knn = sim.topk(k, largest=True)
-        return knn.indices
+        indices = knn.indices.cpu()
+        del inputs, outputs, query_emb, fact_embs_gpu, sim, knn
+        return indices
     
     def prepare_input(self, item, knowledge_to_inject_str=""):
         """
@@ -557,7 +559,11 @@ Answer:"""
             
             # 5. Update the history for the next iteration
             history += f"Subquestion: {subquestion}\nGenerated Answer: {answer}\n"
-            
+
+        if embs is not None:
+            del embs
+        torch.cuda.empty_cache()
+
         return knowledge_to_inject_str.strip()
 
     def edit(self, knowledge_to_inject):
