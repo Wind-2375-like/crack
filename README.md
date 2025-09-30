@@ -2,11 +2,12 @@
 
 ## Setup
 
-Setup the environment from `environment.yml`:
+We use Python 3.12.
 
-```bash
-conda env create -f environment.yml
-conda activate crack
+```
+!pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+!pip install tqdm openai together transformers sparqlwrapper datasets accelerate ninja pynvml
+!MAX_JOBS=32 pip install flash-attn --no-build-isolation
 ```
 
 In `api_key/config.json`, you need to provide your API keys for the models you want to use. The file should look like this:
