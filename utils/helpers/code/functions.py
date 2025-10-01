@@ -562,26 +562,29 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
     """
     log_stream = io.StringIO()
     try:
-        # --- FIX #1: Auto-detect and install required libraries ---
-        # Find all import statements in both the model's code and the test code.
-        imports = re.findall(r"^\s*import\s+([a-zA-Z0-9_.]+)", model_code + "\n" + test_code, re.MULTILINE)
-        from_imports = re.findall(r"^\s*from\s+([a-zA-Z0-9_.]+)", model_code + "\n" + test_code, re.MULTILINE)
-        
-        # Take the top-level package name (e.g., 'unittest.mock' -> 'unittest')
-        all_libs = set([lib.split('.')[0] for lib in imports + from_imports])
+        # --- FIX #1: More robustly auto-detect and install required libraries ---
+        # Find all top-level import statements.
+        imports = re.findall(r"^\s*import\s+([a-zA-Z0-9_]+)", model_code + "\n" + test_code, re.MULTILINE)
+        from_imports = re.findall(r"^\s*from\s+([a-zA-Z0-9_]+)", model_code + "\n" + test_code, re.MULTILINE)
+        all_libs = set(imports + from_imports)
 
-        # Standard libraries to ignore
-        std_libs = {'sys', 'os', 're', 'unittest', 'json', 'pickle', 'io', 'platform', 'resource', 'tempfile', 'traceback', 'functools', 'contextlib', 'datetime', 'collections', 'math', 'random', 'itertools'}
+        # A more comprehensive list of Python standard libraries.
+        std_libs = set(sys.stdlib_module_names)
         
         libs_to_install = [lib for lib in all_libs if lib not in std_libs]
 
         if libs_to_install:
-            # Use pip to install the detected libraries quietly
-            # Using sys.executable ensures we use the pip from the correct python environment
             install_command = [sys.executable, '-m', 'pip', 'install', '-q'] + libs_to_install
-            # Use DEVNULL to hide installation output unless there's an error
-            subprocess.check_call(install_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
+            try:
+                # Use DEVNULL to hide successful installation output
+                subprocess.check_call(install_command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError as e:
+                # If pip install fails, it's a critical error in the test setup.
+                error_output = e.stderr.decode('utf-8') if e.stderr else "No stderr output."
+                result_dict['model_pass'] = False
+                result_dict['explanation'] = f"Failed to install dependencies: {libs_to_install}. Pip Error:\n{error_output}"
+                return
+
         # --- FIX #2: Fix the unittest.mock import path ---
         if "unittest.mock.patch" in test_code:
             if "import unittest" not in test_code:
