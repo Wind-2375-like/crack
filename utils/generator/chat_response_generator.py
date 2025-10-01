@@ -1,6 +1,6 @@
 from utils.clients.openai_chat_client import OpenAIChatClient
 from utils.clients.together_chat_client import TogetherChatClient
-from utils.clients.local_chat_client import LocalChatClient
+from utils.clients.gemini_chat_client import GeminiChatClient
 from together.error import RateLimitError as TogetherRateLimitError
 from openai import RateLimitError as OpenAIRateLimitError
 from together.error import APIConnectionError as TogetherAPIConnectionError
@@ -26,6 +26,7 @@ class ChatResponseGenerator:
             "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo": "together",
             "mistralai/Mixtral-8x22B-Instruct-v0.1": "together",
             "mistralai/Mixtral-8x7B-Instruct-v0.1": "together",
+            "gemini-2.5-pro": "gemini"
         }
         if not (model_name in self.model_name_to_openai_or_together or local):
             if "gpt-4.1-mini" in model_name: # fine-tuned models
@@ -40,7 +41,10 @@ class ChatResponseGenerator:
             self.client = OpenAIChatClient(api_key=api_key.get("openai_api_key", None))
         elif self.client_type == "together":
             self.client = TogetherChatClient(api_key=api_key.get("togetherai_api_key", None))
+        elif self.client_type == "gemini":
+            self.client = GeminiChatClient(api_key=api_key.get("gemini_api_key"))
         elif self.client_type == "local":
+            from utils.clients.local_chat_client import LocalChatClient
             login(token=api_key.get("huggingface_api_key", None))
             self.client = LocalChatClient(model_name=model_name)
             
