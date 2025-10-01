@@ -1,4 +1,5 @@
 import ast
+import nltk
 import importlib
 import inspect
 import re
@@ -557,56 +558,92 @@ def _capture_subprocess_output():
 
 def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
     """
-    A worker function that executes in a separate, sandboxed process.
-    It installs dependencies, fixes imports, and runs unit tests.
+    A robust worker function that executes in a separate, sandboxed process.
+    It installs dependencies, fixes common code errors, and runs unit tests.
     """
     log_stream = io.StringIO()
-    try:
-        # --- FIX #1: More robustly auto-detect and install required libraries ---
-        # Find all top-level import statements.
-        imports = re.findall(r"^\s*import\s+([a-zA-Z0-9_]+)", model_code + "\n" + test_code, re.MULTILINE)
-        from_imports = re.findall(r"^\s*from\s+([a-zA-Z0-9_]+)", model_code + "\n" + test_code, re.MULTILINE)
-        all_libs = set(imports + from_imports)
-
-        # A more comprehensive list of Python standard libraries.
-        std_libs = set(sys.stdlib_module_names)
-        
-        libs_to_install = [lib for lib in all_libs if lib not in std_libs]
-
-        if libs_to_install:
-            install_command = [sys.executable, '-m', 'pip', 'install', '-q'] + libs_to_install
-            try:
-                # Use DEVNULL to hide successful installation output
-                subprocess.check_call(install_command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError as e:
-                # If pip install fails, it's a critical error in the test setup.
-                error_output = e.stderr.decode('utf-8') if e.stderr else "No stderr output."
-                result_dict['model_pass'] = False
-                result_dict['explanation'] = f"Failed to install dependencies: {libs_to_install}. Pip Error:\n{error_output}"
-                return
-
-        # --- FIX #2: Fix the unittest.mock import path ---
-        if "unittest.mock.patch" in test_code:
-            if "import unittest" not in test_code:
-                test_code = "import unittest\n" + test_code
-            test_code = "from unittest.mock import patch\n" + test_code.replace("unittest.mock.patch", "patch")
-
-        # --- The rest of the execution logic ---
-        if platform.system() != "Windows":
-            mem_limit = 10 * 1024 * 1024 * 1024
-            resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
-            resource.setrlimit(resource.RLIMIT_DATA, (mem_limit, mem_limit))
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            os.chdir(temp_dir)
-            full_code = model_code + "\n\n" + test_code
-            execution_globals = {"__name__": "__main__"}
+    # Redirect stdout and stderr to our log stream to capture everything
+    with patch('sys.stdout', log_stream), patch('sys.stderr', log_stream):
+        try:
+            # --- 1. Fix common data quality issues in test code ---
+            test_code = test_code.replace("self.assertEquals", "self.assertEqual")
             
-            compiled_code = compile(full_code, '<string>', 'exec')
+            # --- 2. More robust dependency detection and installation ---
+            # Find all top-level import statements
+            imports = re.findall(r"^\s*import\s+([a-zA-Z0-9_.,\s]+)", model_code + "\n" + test_code, re.MULTILINE)
+            from_imports = re.findall(r"^\s*from\s+([a-zA-Z0-9_]+)", model_code + "\n" + test_code, re.MULTILINE)
+            
+            # Flatten multi-imports like "import a, b, c"
+            all_raw_imports = set(from_imports)
+            for imp in imports:
+                all_raw_imports.update([name.strip() for name in imp.split(',')])
 
-            # Use the corrected 'patch' that was imported at the top of the file
-            with patch('sys.stdout', log_stream), patch('sys.stderr', log_stream):
+            # A more comprehensive list of Python standard libraries
+            std_libs = set(sys.stdlib_module_names)
+            
+            # Add known implicit dependencies
+            # If pandas is used, it often needs openpyxl for tests
+            if 'pandas' in all_raw_imports:
+                all_raw_imports.add('openpyxl')
+            
+            # opencv-python is imported as cv2
+            if 'cv2' in all_raw_imports:
+                all_raw_imports.add('opencv-python')
+
+            libs_to_install = [lib for lib in all_raw_imports if lib not in std_libs]
+
+            if libs_to_install:
+                # Use --no-cache-dir to prevent issues in some environments
+                install_command = [sys.executable, '-m', 'pip', 'install', '--no-cache-dir', '-q'] + libs_to_install
+                try:
+                    # Capture stderr to a variable for better error reporting
+                    result = subprocess.run(install_command, capture_output=True, text=True, check=True)
+                except subprocess.CalledProcessError as e:
+                    # THIS IS THE CRITICAL FIX for silent pip failures
+                    error_output = e.stderr if e.stderr else "No stderr output from pip."
+                    result_dict['model_pass'] = False
+                    result_dict['explanation'] = f"Failed to install dependencies: {libs_to_install}. Pip Error:\n{error_output}"
+                    return
+
+            # --- 3. Handle NLTK's special data requirements ---
+            if 'nltk' in all_raw_imports or 'textblob' in all_raw_imports:
+                try:
+                    nltk.data.find('tokenizers/punkt')
+                except LookupError:
+                    nltk.download('punkt', quiet=True)
+                try:
+                    # Add other common corpora if needed by your dataset
+                    nltk.data.find('corpora/stopwords')
+                except LookupError:
+                    nltk.download('stopwords', quiet=True)
+
+            # --- 4. Fix multiprocessing PicklingError ---
+            # This is a common pattern: a helper function is defined inside the main function.
+            # We can use regex to move the helper function to the top level of the code string.
+            match = re.search(r"def\s+task_func\(.*?\):\n((?: {4}|\t)def\s+\w+\(.*?\):(?:\n(?: {4}|\t).*)+)", model_code, re.DOTALL)
+            if match:
+                helper_func_code = match.group(1)
+                # De-indent the helper function
+                lines = helper_func_code.strip().split('\n')
+                dedented_helper = "\n".join([line[4:] if line.startswith(' ' * 4) else line.lstrip('\t') for line in lines])
+                # Remove it from its original location and place it at the top
+                model_code = model_code.replace(helper_func_code, "")
+                model_code = dedented_helper + "\n\n" + model_code
+
+            # --- 5. Execute the code and tests ---
+            if platform.system() != "Windows":
+                mem_limit = 10 * 1024 * 1024 * 1024
+                resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
+                resource.setrlimit(resource.RLIMIT_DATA, (mem_limit, mem_limit))
+            
+            with tempfile.TemporaryDirectory() as temp_dir:
+                os.chdir(temp_dir)
+                full_code = model_code + "\n\n" + test_code
+                execution_globals = {}
+                
+                compiled_code = compile(full_code, '<string>', 'exec')
                 exec(compiled_code, execution_globals)
+                
                 loader = unittest.TestLoader()
                 if 'TestCases' in execution_globals:
                     suite = loader.loadTestsFromTestCase(execution_globals['TestCases'])
@@ -615,19 +652,19 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
                 else:
                     raise NameError("TestCases class not found after executing code.")
 
-            if test_result.wasSuccessful():
-                result_dict['model_pass'] = True
-                result_dict['explanation'] = "All testing points passed."
-            else:
-                test_output = log_stream.getvalue()
-                result_dict['model_pass'] = False
-                result_dict['explanation'] = f"Some tests failed or errored. Full test output:\n{test_output}"
+                if test_result.wasSuccessful():
+                    result_dict['model_pass'] = True
+                    result_dict['explanation'] = "All testing points passed."
+                else:
+                    test_output = log_stream.getvalue()
+                    result_dict['model_pass'] = False
+                    result_dict['explanation'] = f"Some tests failed or errored. Full test output:\n{test_output}"
 
-    except Exception:
-        error_trace = traceback.format_exc()
-        captured_output = log_stream.getvalue()
-        result_dict['model_pass'] = False
-        result_dict['explanation'] = (
-            f"An unexpected error occurred during execution:\n{error_trace}\n\n"
-            f"Captured Output:\n{captured_output}"
-        )
+        except Exception:
+            error_trace = traceback.format_exc()
+            captured_output = log_stream.getvalue()
+            result_dict['model_pass'] = False
+            result_dict['explanation'] = (
+                f"An unexpected error occurred during execution:\n{error_trace}\n\n"
+                f"Captured Output (from stdout/stderr):\n{captured_output}"
+            )

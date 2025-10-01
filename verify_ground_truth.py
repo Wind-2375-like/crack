@@ -68,12 +68,12 @@ def verify_dataset(input_path):
     if not failures:
         print(f"✅ All {len(data_to_verify)} items passed their unit tests!")
     else:
-        print(f"❌ Found {len(failures)} failures out of {len(data_to_verify)} items.")
         print("--- Failure Details ---")
         for item_id, explanation in failures:
             print(f"\nTask ID: {item_id}")
             print(f"Reason: {explanation}\n")
             print("-" * 20)
+        print(f"❌ Found {len(failures)} failures out of {len(data_to_verify)} items.")
 
 if __name__ == "__main__":
     # --- CONFIGURE THE FILE YOU WANT TO TEST HERE ---
