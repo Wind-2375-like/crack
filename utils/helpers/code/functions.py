@@ -15,6 +15,8 @@ import json
 from contextlib import contextmanager
 import functools
 import importlib.metadata
+import sys
+from unittest.mock import patch
 
 
 # --- Global Cache ---
@@ -556,43 +558,59 @@ def _capture_subprocess_output():
 def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
     """
     A worker function that executes in a separate, sandboxed process.
-    It runs the unit tests against the model's code and reports results.
+    It installs dependencies, fixes imports, and runs unit tests.
     """
-    # Set memory limits (e.g., 10 GB) as requested
-    if platform.system() != "Windows":
-        mem_limit = 10 * 1024 * 1024 * 1024
-        try:
+    log_stream = io.StringIO()
+    try:
+        # --- FIX #1: Auto-detect and install required libraries ---
+        # Find all import statements in both the model's code and the test code.
+        imports = re.findall(r"^\s*import\s+([a-zA-Z0-9_.]+)", model_code + "\n" + test_code, re.MULTILINE)
+        from_imports = re.findall(r"^\s*from\s+([a-zA-Z0-9_.]+)", model_code + "\n" + test_code, re.MULTILINE)
+        
+        # Take the top-level package name (e.g., 'unittest.mock' -> 'unittest')
+        all_libs = set([lib.split('.')[0] for lib in imports + from_imports])
+
+        # Standard libraries to ignore
+        std_libs = {'sys', 'os', 're', 'unittest', 'json', 'pickle', 'io', 'platform', 'resource', 'tempfile', 'traceback', 'functools', 'contextlib', 'datetime', 'collections', 'math', 'random', 'itertools'}
+        
+        libs_to_install = [lib for lib in all_libs if lib not in std_libs]
+
+        if libs_to_install:
+            # Use pip to install the detected libraries quietly
+            # Using sys.executable ensures we use the pip from the correct python environment
+            install_command = [sys.executable, '-m', 'pip', 'install', '-q'] + libs_to_install
+            # Use DEVNULL to hide installation output unless there's an error
+            subprocess.check_call(install_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        # --- FIX #2: Fix the unittest.mock import path ---
+        if "unittest.mock.patch" in test_code:
+            if "import unittest" not in test_code:
+                test_code = "import unittest\n" + test_code
+            test_code = "from unittest.mock import patch\n" + test_code.replace("unittest.mock.patch", "patch")
+
+        # --- The rest of the execution logic ---
+        if platform.system() != "Windows":
+            mem_limit = 10 * 1024 * 1024 * 1024
             resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
             resource.setrlimit(resource.RLIMIT_DATA, (mem_limit, mem_limit))
-        except Exception as e:
-            result_dict['model_pass'] = False
-            result_dict['explanation'] = f"Failed to set resource limits: {e}"
-            return
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        try:
+        with tempfile.TemporaryDirectory() as temp_dir:
             os.chdir(temp_dir)
             full_code = model_code + "\n\n" + test_code
             execution_globals = {"__name__": "__main__"}
-
-            try:
-                compiled_code = compile(full_code, '<string>', 'exec')
-            except Exception as e:
-                result_dict['model_pass'] = False
-                result_dict['explanation'] = f"Compilation Error:\n{traceback.format_exc()}"
-                return
-
-            log_stream = io.StringIO()
             
-            with unittest.mock.patch('sys.stdout', log_stream), \
-                 unittest.mock.patch('sys.stderr', log_stream), \
-                 _capture_subprocess_output():
-                
+            compiled_code = compile(full_code, '<string>', 'exec')
+
+            # Use the corrected 'patch' that was imported at the top of the file
+            with patch('sys.stdout', log_stream), patch('sys.stderr', log_stream):
                 exec(compiled_code, execution_globals)
                 loader = unittest.TestLoader()
-                suite = loader.loadTestsFromTestCase(execution_globals['TestCases'])
-                runner = unittest.TextTestRunner(stream=log_stream, verbosity=2)
-                test_result = runner.run(suite)
+                if 'TestCases' in execution_globals:
+                    suite = loader.loadTestsFromTestCase(execution_globals['TestCases'])
+                    runner = unittest.TextTestRunner(stream=log_stream, verbosity=2)
+                    test_result = runner.run(suite)
+                else:
+                    raise NameError("TestCases class not found after executing code.")
 
             if test_result.wasSuccessful():
                 result_dict['model_pass'] = True
@@ -602,11 +620,11 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
                 result_dict['model_pass'] = False
                 result_dict['explanation'] = f"Some tests failed or errored. Full test output:\n{test_output}"
 
-        except Exception as e:
-            error_trace = traceback.format_exc()
-            captured_output = log_stream.getvalue() if 'log_stream' in locals() else ""
-            result_dict['model_pass'] = False
-            result_dict['explanation'] = (
-                f"An unexpected error occurred during execution:\n{error_trace}\n\n"
-                f"Captured Output:\n{captured_output}"
-            )
+    except Exception:
+        error_trace = traceback.format_exc()
+        captured_output = log_stream.getvalue()
+        result_dict['model_pass'] = False
+        result_dict['explanation'] = (
+            f"An unexpected error occurred during execution:\n{error_trace}\n\n"
+            f"Captured Output:\n{captured_output}"
+        )
