@@ -567,39 +567,42 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
         try:
             # --- 1. Fix common data quality issues in test code ---
             test_code = test_code.replace("self.assertEquals", "self.assertEqual")
-            
-            # --- 2. More robust dependency detection and installation ---
-            # Find all top-level import statements
-            imports = re.findall(r"^\s*import\s+([a-zA-Z0-9_.,\s]+)", model_code + "\n" + test_code, re.MULTILINE)
-            from_imports = re.findall(r"^\s*from\s+([a-zA-Z0-9_]+)", model_code + "\n" + test_code, re.MULTILINE)
-            
-            # Flatten multi-imports like "import a, b, c"
-            all_raw_imports = set(from_imports)
-            for imp in imports:
-                all_raw_imports.update([name.strip() for name in imp.split(',')])
 
-            # A more comprehensive list of Python standard libraries
+            # --- 2. More robust dependency detection using AST (Abstract Syntax Tree) ---
+            # This is the corrected section.
+            all_raw_imports = set()
+            try:
+                full_code_for_ast = model_code + "\n" + test_code
+                tree = ast.parse(full_code_for_ast)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Import):
+                        for alias in node.names:
+                            # For 'import pandas.io', we want 'pandas'
+                            all_raw_imports.add(alias.name.split('.')[0])
+                    elif isinstance(node, ast.ImportFrom):
+                        # For 'from pandas.io import ...', module is 'pandas.io'
+                        if node.module:
+                            all_raw_imports.add(node.module.split('.')[0])
+            except SyntaxError:
+                # Fallback to simple regex if AST parsing fails (rare)
+                imports = re.findall(r"^\s*(?:import|from)\s+([a-zA-Z0-9_]+)", model_code + "\n" + test_code, re.MULTILINE)
+                all_raw_imports.update(imports)
+
             std_libs = set(sys.stdlib_module_names)
             
             # Add known implicit dependencies
-            # If pandas is used, it often needs openpyxl for tests
-            if 'pandas' in all_raw_imports:
-                all_raw_imports.add('openpyxl')
-            
-            # opencv-python is imported as cv2
-            if 'cv2' in all_raw_imports:
-                all_raw_imports.add('opencv-python')
-
-            libs_to_install = [lib for lib in all_raw_imports if lib not in std_libs]
+            if 'pandas' in all_raw_imports: all_raw_imports.add('openpyxl')
+            if 'cv2' in all_raw_imports: all_raw_imports.add('opencv-python')
+            if 'sklearn' in all_raw_imports: all_raw_imports.add('scikit-learn') # Add scikit-learn
+            if 'PIL' in all_raw_imports: all_raw_imports.add('Pillow') # PIL is installed via Pillow
+                
+            libs_to_install = [lib for lib in all_raw_imports if lib and lib not in std_libs]
 
             if libs_to_install:
-                # Use --no-cache-dir to prevent issues in some environments
-                install_command = [sys.executable, '-m', 'pip', 'install', '--no-cache-dir', '-q'] + libs_to_install
+                install_command = [sys.executable, '-m', 'pip', 'install', '--no-cache-dir', '-q'] + list(set(libs_to_install))
                 try:
-                    # Capture stderr to a variable for better error reporting
-                    result = subprocess.run(install_command, capture_output=True, text=True, check=True)
+                    subprocess.run(install_command, capture_output=True, text=True, check=True)
                 except subprocess.CalledProcessError as e:
-                    # THIS IS THE CRITICAL FIX for silent pip failures
                     error_output = e.stderr if e.stderr else "No stderr output from pip."
                     result_dict['model_pass'] = False
                     result_dict['explanation'] = f"Failed to install dependencies: {libs_to_install}. Pip Error:\n{error_output}"
@@ -612,24 +615,19 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
                 except LookupError:
                     nltk.download('punkt', quiet=True)
                 try:
-                    # Add other common corpora if needed by your dataset
                     nltk.data.find('corpora/stopwords')
                 except LookupError:
                     nltk.download('stopwords', quiet=True)
-
+            
             # --- 4. Fix multiprocessing PicklingError ---
-            # This is a common pattern: a helper function is defined inside the main function.
-            # We can use regex to move the helper function to the top level of the code string.
-            match = re.search(r"def\s+task_func\(.*?\):\n((?: {4}|\t)def\s+\w+\(.*?\):(?:\n(?: {4}|\t).*)+)", model_code, re.DOTALL)
+            match = re.search(r"(def\s+task_func\(.*?\):\n(?:(?: {4}|\t).*?\n)*?)((?: {4}|\t)def\s+\w+\(.*?\):(?:\n(?: {4}|\t).*)+)", model_code, re.DOTALL)
             if match:
-                helper_func_code = match.group(1)
-                # De-indent the helper function
+                main_func_header = match.group(1)
+                helper_func_code = match.group(2)
                 lines = helper_func_code.strip().split('\n')
                 dedented_helper = "\n".join([line[4:] if line.startswith(' ' * 4) else line.lstrip('\t') for line in lines])
-                # Remove it from its original location and place it at the top
-                model_code = model_code.replace(helper_func_code, "")
-                model_code = dedented_helper + "\n\n" + model_code
-
+                model_code = dedented_helper + "\n\n" + model_code.replace(helper_func_code, "")
+            
             # --- 5. Execute the code and tests ---
             if platform.system() != "Windows":
                 mem_limit = 10 * 1024 * 1024 * 1024
