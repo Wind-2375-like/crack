@@ -1,6 +1,7 @@
 from utils.clients.openai_chat_client import OpenAIChatClient
 from utils.clients.together_chat_client import TogetherChatClient
 from utils.clients.gemini_chat_client import GeminiChatClient
+from utils.clients.local_chat_client import LocalChatClient
 from together.error import RateLimitError as TogetherRateLimitError
 from openai import RateLimitError as OpenAIRateLimitError
 from together.error import APIConnectionError as TogetherAPIConnectionError
