@@ -408,7 +408,7 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
         ])
         raw_equivalence_response = chat_response_generator.generate_response(
             llm_input_prompt_equivalence,
-            temperature=0, top_p=1, n=1, max_tokens=100
+            temperature=0, top_p=1, n=1, max_tokens=4096
         )[0]
         
         final_answer_correct, final_answer_explanation = _parse_llm_equivalence_response(raw_equivalence_response)
@@ -446,7 +446,7 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
         ])
         raw_equivalence_response = chat_response_generator.generate_response(
             llm_input_prompt_equivalence,
-            temperature=0, top_p=1, n=1, max_tokens=100
+            temperature=0, top_p=1, n=1, max_tokens=4096
         )[0]
         
         final_answer_correct, final_answer_explanation = _parse_llm_equivalence_response(raw_equivalence_response)
@@ -487,7 +487,7 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
         
         raw_nli_response = chat_response_generator.generate_response(
             llm_input_prompt_nli,
-            temperature=0, top_p=1, n=1, max_tokens=256
+            temperature=0, top_p=1, n=1, max_tokens=4096
         )[0]
         
         nli_class, nli_explanation = _parse_nli_response(raw_nli_response)
