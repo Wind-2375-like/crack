@@ -44,8 +44,7 @@ class ChatResponseGenerator:
         elif self.client_type == "gemini":
             self.client = GeminiChatClient(api_key=api_key.get("gemini_api_key"))
         elif self.client_type == "local":
-            from utils.clients.local_chat_client import LocalChatClient
-            login(token=api_key.get("huggingface_api_key", None))
+            # login(token=api_key.get("huggingface_api_key", None))
             self.client = LocalChatClient(model_name=model_name)
             
         self._usage = {}

@@ -28,11 +28,11 @@ except ImportError:
 
 # --- Configuration (can be the same as the other script) ---
 MODEL_MEMORY_OVERRIDES = {
-    "7b": 14,
-    "11b": 22,
-    "default": 0,
+    "7b": 1,
+    "11b": 1,
+    "default": 1,
 }
-GPU_HEADROOM_GB = 4
+GPU_HEADROOM_GB = 0
 # --- End Configuration ---
 
 console = Console()
@@ -67,7 +67,7 @@ def get_required_memory(model_name: str) -> float:
         size_key = size_key_match.group(1)
         if size_key in MODEL_MEMORY_OVERRIDES: return MODEL_MEMORY_OVERRIDES[size_key]
     if numerical_match:
-        numerical_size = float(numerical_match.group(1)); return 2.0 * numerical_size
+        numerical_size = float(numerical_match.group(1)); return numerical_size ** 0
     return MODEL_MEMORY_OVERRIDES.get("default", 0)
 
 def generate_commands(args):
