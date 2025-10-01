@@ -562,14 +562,12 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
     It installs dependencies, fixes common code errors, and runs unit tests.
     """
     log_stream = io.StringIO()
-    # Redirect stdout and stderr to our log stream to capture everything
     with patch('sys.stdout', log_stream), patch('sys.stderr', log_stream):
         try:
-            # --- 1. Fix common data quality issues in test code ---
+            # --- 1. Fix common data quality issues ---
             test_code = test_code.replace("self.assertEquals", "self.assertEqual")
 
-            # --- 2. More robust dependency detection using AST (Abstract Syntax Tree) ---
-            # This is the corrected section.
+            # --- 2. Robust dependency detection using AST ---
             all_raw_imports = set()
             try:
                 full_code_for_ast = model_code + "\n" + test_code
@@ -577,58 +575,68 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
                 for node in ast.walk(tree):
                     if isinstance(node, ast.Import):
                         for alias in node.names:
-                            # For 'import pandas.io', we want 'pandas'
                             all_raw_imports.add(alias.name.split('.')[0])
                     elif isinstance(node, ast.ImportFrom):
-                        # For 'from pandas.io import ...', module is 'pandas.io'
                         if node.module:
                             all_raw_imports.add(node.module.split('.')[0])
             except SyntaxError:
-                # Fallback to simple regex if AST parsing fails (rare)
                 imports = re.findall(r"^\s*(?:import|from)\s+([a-zA-Z0-9_]+)", model_code + "\n" + test_code, re.MULTILINE)
                 all_raw_imports.update(imports)
 
-            std_libs = set(sys.stdlib_module_names)
-            
-            # Add known implicit dependencies
+            # --- 3. Translate import names to pip package names ---
+            # THIS IS THE KEY FIX for sklearn, PIL, cv2, etc.
+            translation_map = {
+                'sklearn': 'scikit-learn',
+                'PIL': 'Pillow',
+                'cv2': 'opencv-python',
+            }
+            # Add implicit dependencies
             if 'pandas' in all_raw_imports: all_raw_imports.add('openpyxl')
-            if 'cv2' in all_raw_imports: all_raw_imports.add('opencv-python')
-            if 'sklearn' in all_raw_imports: all_raw_imports.add('scikit-learn') # Add scikit-learn
-            if 'PIL' in all_raw_imports: all_raw_imports.add('Pillow') # PIL is installed via Pillow
-                
-            libs_to_install = [lib for lib in all_raw_imports if lib and lib not in std_libs]
+            if 'seaborn' in all_raw_imports: all_raw_imports.add('matplotlib')
 
-            if libs_to_install:
-                install_command = [sys.executable, '-m', 'pip', 'install', '--no-cache-dir', '-q'] + list(set(libs_to_install))
+            libs_to_install = set()
+            for lib in all_raw_imports:
+                if lib:
+                    libs_to_install.add(translation_map.get(lib, lib))
+
+            # Remove modules that are not installable via pip
+            non_installable = {'mpl_toolkits'}
+            libs_to_install -= non_installable
+            
+            std_libs = set(sys.stdlib_module_names)
+            final_libs_to_install = [lib for lib in libs_to_install if lib not in std_libs]
+
+            if final_libs_to_install:
+                install_command = [sys.executable, '-m', 'pip', 'install', '--no-cache-dir', '-q'] + list(set(final_libs_to_install))
                 try:
                     subprocess.run(install_command, capture_output=True, text=True, check=True)
                 except subprocess.CalledProcessError as e:
                     error_output = e.stderr if e.stderr else "No stderr output from pip."
                     result_dict['model_pass'] = False
-                    result_dict['explanation'] = f"Failed to install dependencies: {libs_to_install}. Pip Error:\n{error_output}"
+                    result_dict['explanation'] = f"Failed to install dependencies: {final_libs_to_install}. Pip Error:\n{error_output}"
                     return
 
-            # --- 3. Handle NLTK's special data requirements ---
+            # --- 4. Handle special library data requirements (NLTK, TextBlob) ---
             if 'nltk' in all_raw_imports or 'textblob' in all_raw_imports:
                 try:
-                    nltk.data.find('tokenizers/punkt')
-                except LookupError:
-                    nltk.download('punkt', quiet=True)
-                try:
-                    nltk.data.find('corpora/stopwords')
-                except LookupError:
-                    nltk.download('stopwords', quiet=True)
+                    subprocess.run([sys.executable, "-m", "nltk.downloader", "-q", "punkt"], check=True)
+                    subprocess.run([sys.executable, "-m", "nltk.downloader", "-q", "stopwords"], check=True)
+                    if 'textblob' in all_raw_imports:
+                         subprocess.run([sys.executable, "-m", "textblob.download_corpora", "-q"], check=True)
+                except subprocess.CalledProcessError as e:
+                    result_dict['model_pass'] = False
+                    result_dict['explanation'] = f"Failed to download NLTK/TextBlob corpora. Error:\n{e.stderr}"
+                    return
             
-            # --- 4. Fix multiprocessing PicklingError ---
+            # --- 5. Fix multiprocessing PicklingError ---
             match = re.search(r"(def\s+task_func\(.*?\):\n(?:(?: {4}|\t).*?\n)*?)((?: {4}|\t)def\s+\w+\(.*?\):(?:\n(?: {4}|\t).*)+)", model_code, re.DOTALL)
             if match:
-                main_func_header = match.group(1)
                 helper_func_code = match.group(2)
                 lines = helper_func_code.strip().split('\n')
                 dedented_helper = "\n".join([line[4:] if line.startswith(' ' * 4) else line.lstrip('\t') for line in lines])
                 model_code = dedented_helper + "\n\n" + model_code.replace(helper_func_code, "")
             
-            # --- 5. Execute the code and tests ---
+            # --- 6. Execute the code and tests ---
             if platform.system() != "Windows":
                 mem_limit = 10 * 1024 * 1024 * 1024
                 resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
