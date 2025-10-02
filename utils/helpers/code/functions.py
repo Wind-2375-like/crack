@@ -565,7 +565,10 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
     with patch('sys.stdout', log_stream), patch('sys.stderr', log_stream):
         try:
             # --- 1. Fix common data quality issues ---
+            # Add more deprecated/misspelled assertion methods to the list
             test_code = test_code.replace("self.assertEquals", "self.assertEqual")
+            test_code = test_code.replace("self.assertAlmostEquals", "self.assertAlmostEqual")
+            test_code = test_code.replace("self.assertDictContainsSubset", "self.assertIn") # A common-sense replacement
 
             # --- 2. Robust dependency detection using AST ---
             all_raw_imports = set()
@@ -584,13 +587,12 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
                 all_raw_imports.update(imports)
 
             # --- 3. Translate import names to pip package names ---
-            # THIS IS THE KEY FIX for sklearn, PIL, cv2, etc.
             translation_map = {
                 'sklearn': 'scikit-learn',
                 'PIL': 'Pillow',
                 'cv2': 'opencv-python',
+                'dateutil': 'python-dateutil', # Add the new translation
             }
-            # Add implicit dependencies
             if 'pandas' in all_raw_imports: all_raw_imports.add('openpyxl')
             if 'seaborn' in all_raw_imports: all_raw_imports.add('matplotlib')
 
@@ -599,7 +601,6 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
                 if lib:
                     libs_to_install.add(translation_map.get(lib, lib))
 
-            # Remove modules that are not installable via pip
             non_installable = {'mpl_toolkits'}
             libs_to_install -= non_installable
             
@@ -616,11 +617,10 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
                     result_dict['explanation'] = f"Failed to install dependencies: {final_libs_to_install}. Pip Error:\n{error_output}"
                     return
 
-            # --- 4. Handle special library data requirements (NLTK, TextBlob) ---
+            # --- 4. Handle special library data requirements ---
             if 'nltk' in all_raw_imports or 'textblob' in all_raw_imports:
                 try:
-                    subprocess.run([sys.executable, "-m", "nltk.downloader", "-q", "punkt"], check=True)
-                    subprocess.run([sys.executable, "-m", "nltk.downloader", "-q", "stopwords"], check=True)
+                    subprocess.run([sys.executable, "-m", "nltk.downloader", "-q", "punkt", "stopwords"], check=True)
                     if 'textblob' in all_raw_imports:
                          subprocess.run([sys.executable, "-m", "textblob.download_corpora", "-q"], check=True)
                 except subprocess.CalledProcessError as e:
@@ -637,6 +637,7 @@ def unsafe_execute_worker(model_code: str, test_code: str, result_dict: dict):
                 model_code = dedented_helper + "\n\n" + model_code.replace(helper_func_code, "")
             
             # --- 6. Execute the code and tests ---
+            # ... (rest of the function is unchanged)
             if platform.system() != "Windows":
                 mem_limit = 10 * 1024 * 1024 * 1024
                 resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
