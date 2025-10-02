@@ -29,7 +29,7 @@ def generate_commands(args):
             if not args.overwrite and os.path.exists(output_path):
                 print(f"SKIPPING (result exists): {output_path}")
                 continue
-            commands.append(base_script + ["--task_name", task, "--model_name", model])
+            commands.append(base_script + ["--task_name", task, "--model_name", model, "--data_size", str(args.data_size)])
 
     # --- 2. Evaluations with knowledge injection ---
     if args.run_inject_eval:
@@ -45,7 +45,8 @@ def generate_commands(args):
                     "--knowledge_aggregation_scope", str(scope),
                     "--method", method,
                     "--task_name", task,
-                    "--model_name", model
+                    "--model_name", model,
+                    "--data_size", str(args.data_size)
                 ]
             )
     
@@ -64,7 +65,8 @@ def generate_commands(args):
                     "--knowledge_aggregation_scope", "1",
                     "--method", "all",
                     "--task_name", task,
-                    "--model_name", model
+                    "--model_name", model,
+                    "--data_size", str(args.data_size)
                 ]
             )
 
@@ -77,6 +79,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_names', nargs='+', default=["llama-3.2-1b", "llama-3.2-3b", "qwen-2.5-1.5b", "qwen-2.5-3b"], help='List of model names to evaluate.')
     parser.add_argument('--task_names', nargs='+', default=["code", "math", "grow"], help='List of task names to evaluate.')
     parser.add_argument('--method_names', nargs='+', default=["base", "mello"], help='List of method names to evaluate.')
+    parser.add_argument('--data_size', type=int, default=500, help='Data size for testing.')
     
     # --- Evaluation Type Control ---
     parser.add_argument('--no-base-eval', action='store_false', dest='run_base_eval', help='Do not run base evaluations.')
@@ -85,7 +88,7 @@ if __name__ == "__main__":
     parser.add_argument('--overwrite', action='store_true', help='Force run all commands, overwriting existing results.')
     
     # --- Knowledge Injection Specifics ---
-    parser.add_argument('--knowledge_aggregation_scopes', nargs='+', type=int, default=[1, 10, 100], help='List of knowledge aggregation scopes.')
+    parser.add_argument('--knowledge_aggregation_scopes', nargs='+', type=int, default=[1, 10, 100, 500], help='List of knowledge aggregation scopes.')
 
     # --- Parallelism Control ---
     parser.add_argument('--max-workers', type=int, default=32, help='Maximum number of parallel processes.')

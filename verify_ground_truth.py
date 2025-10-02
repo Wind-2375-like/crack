@@ -4,13 +4,11 @@ import multiprocessing
 import os
 from tqdm import tqdm
 import sys
+import json
 
-# Make sure the script can find your helper functions
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.append(project_root)
-
-# Import the NOW-CORRECTED worker function
 from utils.helpers.code.functions import unsafe_execute_worker, EXECUTION_TIMEOUT
 
 def verify_item(item):
@@ -19,11 +17,8 @@ def verify_item(item):
     Returns a tuple: (is_correct: bool, explanation: str, item_id: str)
     """
     item_id = item.get("other_metadata", {}).get("task_id", "N/A")
-    
-    # The ground truth code is the combination of the prompt and the canonical solution
     model_code = item.get('other_metadata', {}).get('code_prompt', '') + \
-                 item.get('other_metadata', {}).get('canonical_solution', '')
-                 
+                 item.get('other_metadata', {}).get('canonical_solution', '') 
     unit_test_str = item.get("other_metadata", {}).get("test", "")
 
     with multiprocessing.Manager() as manager:
@@ -45,6 +40,28 @@ def verify_item(item):
             explanation = result_dict.get('explanation', f"Crashed or no explanation. Exit code: {process.exitcode}")
 
     return is_correct, explanation, item_id
+
+def generate_failure_list(input_path, output_json_path):
+    """Loads a dataset, finds failing items, and saves their IDs to a JSON file."""
+    with open(input_path, 'rb') as f:
+        data_to_verify = pickle.load(f)
+
+    print(f"\nScanning for failing ground-truth items in: {input_path}")
+    
+    failing_ids = []
+    
+    for item_data in tqdm(data_to_verify, desc="Identifying invalid items"):
+        is_correct, explanation, item_id = verify_item(item_data)
+        if not is_correct:
+            failing_ids.append(item_id)
+
+    print("\n--- Scan Complete ---")
+    print(f"🔎 Found {len(failing_ids)} invalid items.")
+    
+    # Save the list of failing IDs to a JSON file
+    with open(output_json_path, 'w') as f:
+        json.dump(failing_ids, f, indent=2)
+    print(f"✅ List of invalid Task IDs saved to: {output_json_path}")
 
 def verify_dataset(input_path):
     """Loads a dataset and verifies each item's ground truth."""
@@ -79,5 +96,7 @@ if __name__ == "__main__":
     # --- CONFIGURE THE FILE YOU WANT TO TEST HERE ---
     # This should be your original data collection output, not an evaluated file.
     file_to_verify = 'data/code/test_500.pkl'
+    output_file = 'invalid_task_ids.json'
 
-    verify_dataset(file_to_verify)
+    # verify_dataset(file_to_verify)
+    generate_failure_list(file_to_verify, output_file)

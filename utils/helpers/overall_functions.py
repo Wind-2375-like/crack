@@ -50,10 +50,13 @@ def run_command(command, max_retries=10, retry_delay_minutes=10, log_dir="logs")
     
     # 2. Create a more descriptive and predictable log file name
     log_file_name_parts = [experiment_type]
-    for flag in ['--inject_knowledge', '--task_name', '--model_name', '--method', '--knowledge_aggregation_scope']:
+    for flag in ['--data_size', '--inject_knowledge', '--task_name', '--model_name', '--method', '--knowledge_aggregation_scope']:
         try:
-            index = command.index(flag)
-            log_file_name_parts.append(command[index + 1])
+            if flag == '--inject_knowledge':
+                log_file_name_parts.append('inject_knowledge')
+            else:
+                index = command.index(flag)
+                log_file_name_parts.append(command[index + 1])
         except (ValueError, IndexError):
             continue # Flag not in command or has no value
     log_file_name = f"{'_'.join(log_file_name_parts)}.log"

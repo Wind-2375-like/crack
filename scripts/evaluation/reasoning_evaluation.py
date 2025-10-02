@@ -13,6 +13,18 @@ from utils.generator.chat_response_generator import ChatResponseGenerator
 from scripts.evaluation.knowledge_evaluation import PROMPT_TEMPLATES as PROMPT_TEMPLATES_EQUIVALENCE
 from utils.helpers.code import unsafe_execute_worker, EXECUTION_TIMEOUT
 
+INVALID_TASK_IDS = {
+    "BigCodeBench/39", "BigCodeBench/80", "BigCodeBench/81", "BigCodeBench/82",
+    "BigCodeBench/83", "BigCodeBench/90", "BigCodeBench/91", "BigCodeBench/101",
+    "BigCodeBench/111", "BigCodeBench/115", "BigCodeBench/129", "BigCodeBench/147",
+    "BigCodeBench/157", "BigCodeBench/177", "BigCodeCodeBench/202", "BigCodeBench/205",
+    "BigCodeBench/221", "BigCodeBench/237", "BigCodeBench/245", "BigCodeBench/272",
+    "BigCodeBench/274", "BigCodeBench/276", "BigCodeBench/289", "BigCodeBench/334",
+    "BigCodeBench/352", "BigCodeBench/363", "BigCodeBench/372", "BigCodeBench/383",
+    "BigCodeBench/416", "BigCodeBench/417", "BigCodeBench/418", "BigCodeBench/419",
+    "BigCodeBench/461", "BigCodeBench/495"
+}
+
 PROMPT_TEMPLATES_EQUIVALENCE_MATH = {
     "math": """You are given a question, a final step of response, and a ground truth answer. The final step may contain a step number and "the answer is ...". PLEASE IGNORE THE STEP NUMBER. Your task is to use math knowledge to evaluate whether the response is mathematically equivalent to the ground truth answer.
 
@@ -271,7 +283,7 @@ def parse_args():
         Namespace: Parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Process a chain of triples.")
-    parser.add_argument('--data_size', type=int, default=100, help="Number of triples to process")
+    parser.add_argument('--data_size', type=int, default=500, help="Number of triples to process")
     parser.add_argument('--api_config_file', type=str, default="./api_key/config.json", help="Path to the API configuration file")
     parser.add_argument('--model_name', type=str, default="llama-3.2-3b", help="Model name for the API")
     parser.add_argument('--evaluate_model_name', type=str, default="gpt-5-mini-2025-08-07", help="Model name for the evaluation")
@@ -554,6 +566,7 @@ if __name__ == "__main__":
             processed_data.append(processed_item)
             pbar.set_postfix_str(f"Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
             pbar.update(1)
+            print(processed_item)
 
     # Save the processed data to a new pickle file
     with open(output_file_path, 'wb') as f:
