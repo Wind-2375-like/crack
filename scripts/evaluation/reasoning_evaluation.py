@@ -540,6 +540,26 @@ if __name__ == "__main__":
     with open(f'data/{args.task_name}/test_{args.data_size}.pkl', "rb") as f:
         raw_dataset = pickle.load(f)
         
+    processed_data = []
+    start_index = 0
+    if os.path.exists(output_file_path):
+        try:
+            with open(output_file_path, 'rb') as f:
+                # Load whatever is already done
+                processed_data = pickle.load(f)
+            # Set the starting point to the number of items already processed
+            start_index = len(processed_data)
+            if start_index > 0:
+                print(f"--- Resuming from checkpoint: {start_index} items already evaluated. ---")
+        except (pickle.UnpicklingError, EOFError, IndexError):
+            print(f"--- Warning: Checkpoint file corrupted. Starting from scratch. ---")
+            processed_data = []
+            start_index = 0
+
+    if start_index >= len(eval_dataset):
+        print("--- All items have already been processed. Exiting. ---")
+        sys.exit(0)
+        
     # Process all chains
     prompt_tokens = 0
     completion_tokens = 0
@@ -548,8 +568,11 @@ if __name__ == "__main__":
     chat_response_generator = ChatResponseGenerator(model_name=args.evaluate_model_name, api_key=args.api_key)
     
     # Use tqdm to show progress
-    with tqdm(total=len(eval_dataset), desc="Processing chains for evaluation") as pbar:
+    with tqdm(total=len(eval_dataset), initial=start_index, desc="Evaluating items") as pbar:
         for item_idx, item in enumerate(eval_dataset):
+            if item_idx < start_index:
+                pbar.update(1)
+                continue
             raw_item = raw_dataset[item_idx]
             item["other_metadata"] = raw_item.get("other_metadata", {})
             if args.task_name == "code":
