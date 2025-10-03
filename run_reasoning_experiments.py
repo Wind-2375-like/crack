@@ -8,12 +8,10 @@ from collections import deque
 import pickle
 from threading import Thread
 
-# Third-party libraries - install with: pip install rich pynvml
 from rich.live import Live
 from rich.table import Table
 from rich.console import Console
 
-# IPython imports are now optional
 try:
     from IPython.display import display, clear_output
     IS_IPYTHON = True
@@ -26,19 +24,15 @@ try:
 except ImportError:
     HAS_PYNVML = False
 
-# --- Configuration (can be the same as the other script) ---
 MODEL_MEMORY_OVERRIDES = {
     "7b": 1,
     "11b": 1,
     "default": 1,
 }
 GPU_HEADROOM_GB = 0
-# --- End Configuration ---
 
 console = Console()
 
-# --- All helper classes and functions are reused without changes ---
-# (GpuMonitor, get_required_memory)
 class GpuMonitor:
     """A thread-safe class to monitor GPU stats."""
     def __init__(self):
@@ -104,7 +98,7 @@ def generate_commands(args):
             has_gpu_jobs = True
 
         cmd_list = base_script + [
-            "--data_size", str(args.data_size), # Pass data_size to worker
+            "--data_size", str(args.data_size),
             "--task_name", task,
             "--model_name", model,
             "--method", method,
@@ -144,7 +138,6 @@ def generate_commands(args):
     commands.sort(key=lambda c: c['required_mem'])
     return deque(commands), has_gpu_jobs
 
-# --- MODIFIED: `generate_dashboard_table` with new columns ---
 def generate_dashboard_table(jobs, gpu_monitor: GpuMonitor) -> Table:
     """Creates the Rich table for the live dashboard."""
     title = "Reasoning Experiment Dashboard"
@@ -176,9 +169,7 @@ def generate_dashboard_table(jobs, gpu_monitor: GpuMonitor) -> Table:
         )
     return table
 
-# --- The `run_scheduler` function is reused without changes ---
 def run_scheduler(args, is_notebook_run=False):
-    # This function is long, but its internal logic is identical to the other script.
     os.makedirs("logs", exist_ok=True)
     pending_jobs_all, has_gpu_jobs = generate_commands(args)
     all_jobs = list(pending_jobs_all) # Keep all for dashboard view
