@@ -566,7 +566,9 @@ if __name__ == "__main__":
             processed_data.append(processed_item)
             pbar.set_postfix_str(f"Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
             pbar.update(1)
-            print(processed_item)
+            # Save the processed data to a new pickle file
+            with open(output_file_path, 'wb') as f:
+                pickle.dump(processed_data, f)
 
     # Save the processed data to a new pickle file
     with open(output_file_path, 'wb') as f:
