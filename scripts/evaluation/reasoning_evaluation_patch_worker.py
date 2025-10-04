@@ -7,7 +7,7 @@ import json
 from tqdm import tqdm
 
 # Import the actual evaluation function from your original script
-from reasoning_evaluation import evaluate_reasoning_item, _execute_llm_generated_code_and_test
+from reasoning_evaluation import evaluate_reasoning_item
 
 # Add project root to path to allow importing utils
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
