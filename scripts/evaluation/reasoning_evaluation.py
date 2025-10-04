@@ -57,7 +57,13 @@ Therefore, the square's area decreases by 10%.
 Ground Truth:
 10
 Correctness:
-Yes, the response "10%" is equivalent to the ground truth "10" because the question asks for a percentage."""
+Yes, the response "10%" is equivalent to the ground truth "10" because the question asks for a percentage.""",
+"default": ""
+}
+
+PROMPT_TEMPLATES_EQUIVALENCE_CODE = {
+    "code": """You are a helpful coding evaluation assistant.""",
+"default": ""
 }
 
 PROMPT_TEMPLATES_NLI = {
@@ -434,9 +440,37 @@ def evaluate_reasoning_item(item, args, chat_response_generator):
             match = re.search(r"```python\s*([\s\S]*?)\s*```", item["model_response"])
             if match:
                 model_final_answer_candidate = match.group(1).strip()
-        final_answer_correct, final_answer_explanation = _execute_llm_generated_code_and_test(model_final_answer_candidate, unit_test)
+    
+        if model_final_answer_candidate == "N/A":
+            final_answer_correct, final_answer_explanation = False, "The model failed to provide a valid code block."
+            item["final_answer_correct"] = final_answer_correct
+            item["final_answer_explanation"] = final_answer_explanation
+            return item, chat_response_generator.get_usage()
+        
+        system_prompt_key_equivalence = args.task_name if args.task_name in PROMPT_TEMPLATES_EQUIVALENCE_CODE else "default"
+        system_prompt_equivalence = PROMPT_TEMPLATES_EQUIVALENCE_CODE[system_prompt_key_equivalence]
+        
+        llm_input_prompt_equivalence = (
+            f"You are given a question:\n\n{item['question']}\n\n"
+            f"And ground truth solution:\n\n{ground_truth_final_answer}\n\n"
+            f"Here is the code generated from an LLM:\n\n{model_final_answer_candidate}\n\n"
+            f"Can LLM-generated code pass the unit test below?\n\n{unit_test}\n\n" # Use extracted model's final answer line
+            f"Answer yes or no with a concise sentence as the explanation."
+        )
+        chat_response_generator.update_chat_history([
+            ("system", system_prompt_equivalence),
+        ])
+        raw_equivalence_response = chat_response_generator.generate_response(
+            llm_input_prompt_equivalence,
+            temperature=0, top_p=1, n=1, max_tokens=8192
+        )[0]
+        
+        final_answer_correct, final_answer_explanation = _parse_llm_equivalence_response(raw_equivalence_response)
         item["final_answer_correct"] = final_answer_correct
         item["final_answer_explanation"] = final_answer_explanation
+        # final_answer_correct, final_answer_explanation = _execute_llm_generated_code_and_test(model_final_answer_candidate, unit_test)
+        # item["final_answer_correct"] = final_answer_correct
+        # item["final_answer_explanation"] = final_answer_explanation
     elif args.task_name == "math":
         model_final_answer_candidate = ""
         if item.get("model_response") and item["model_response"].strip():
@@ -564,15 +598,11 @@ if __name__ == "__main__":
     prompt_tokens = 0
     completion_tokens = 0
     total_tokens = 0
-    processed_data = []
     chat_response_generator = ChatResponseGenerator(model_name=args.evaluate_model_name, api_key=args.api_key)
     
     # Use tqdm to show progress
     with tqdm(total=len(eval_dataset), initial=start_index, desc="Evaluating items") as pbar:
-        for item_idx, item in enumerate(eval_dataset):
-            if item_idx < start_index:
-                pbar.update(1)
-                continue
+        for item_idx, item in enumerate(eval_dataset[start_index:], start=start_index):
             raw_item = raw_dataset[item_idx]
             item["other_metadata"] = raw_item.get("other_metadata", {})
             if args.task_name == "code":

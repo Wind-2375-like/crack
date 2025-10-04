@@ -191,7 +191,8 @@ After eliminating 'e', we have $p=0.29$.
 Answer:
 Given the equations $3p+e=1.24$ and $5p+e=1.82$, subtracting the first equation from the second will eliminate the variable 'e'.
 Correctness:
-No, it fails to mention that subtracting the first equation from the second one will eliminate 'e'."""
+No, it fails to mention that subtracting the first equation from the second one will eliminate 'e'.""",
+"default": ""
 }
 
 # Internal key for representing the group of answers equivalent to ground truth in merged_frequencies

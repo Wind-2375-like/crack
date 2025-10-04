@@ -1,7 +1,7 @@
 from utils.clients.openai_chat_client import OpenAIChatClient
 from utils.clients.together_chat_client import TogetherChatClient
 from utils.clients.gemini_chat_client import GeminiChatClient
-from utils.clients.local_chat_client import LocalChatClient
+# from utils.clients.local_chat_client import LocalChatClient
 from together.error import RateLimitError as TogetherRateLimitError
 from openai import RateLimitError as OpenAIRateLimitError
 from together.error import APIConnectionError as TogetherAPIConnectionError
@@ -45,6 +45,7 @@ class ChatResponseGenerator:
         elif self.client_type == "gemini":
             self.client = GeminiChatClient(api_key=api_key.get("gemini_api_key"))
         elif self.client_type == "local":
+            from utils.clients.local_chat_client import LocalChatClient
             # login(token=api_key.get("huggingface_api_key", None))
             self.client = LocalChatClient(model_name=model_name)
             
