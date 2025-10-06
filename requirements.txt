@@ -1,0 +1,14 @@
+tqdm
+openai
+together
+transformers
+torch
+sparqlwrapper
+datasets
+accelerate
+flashattention
+ninja
+pynvml
+
+pip install tqdm openai together transformers sparqlwrapper datasets accelerate ninja pynvml
+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
