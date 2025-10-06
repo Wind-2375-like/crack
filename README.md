@@ -1,13 +1,14 @@
-# Complex Reasoning Amid Conflicting Knowledge (CRACK)
+# Tracking the Limits of Knowledge Propagation: How LLMs Fail at Multi-Step Reasoning with Conflicting Knowledge
 
 ## Setup
 
 We use Python 3.12.
 
 ```
-!pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
-!pip install tqdm openai together transformers sparqlwrapper datasets accelerate ninja pynvml
-!MAX_JOBS=32 pip install flash-attn --no-build-isolation
+conda create -n crack python=3.12
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install tqdm openai together transformers sparqlwrapper datasets accelerate ninja nvidia-ml-py peft
+MAX_JOBS=32 pip install flash-attn --no-build-isolation
 ```
 
 In `api_key/config.json`, you need to provide your API keys for the models you want to use. The file should look like this:
@@ -31,68 +32,78 @@ In `api_key/config.json`, you need to provide your API keys for the models you w
 ## Data Collection
 
 ```python
-python scripts/testset/grow_collection.py \
-    --data_size 100 \                           # Number of examples to collect
-    --depth 4 \                                 # Length of the reasoning chain
-    --api_config_file ./api_key/config.json \   # Path to the API configuration file
+python scripts/testset/grow_collection.py --data_size 500 --api_config_file ./api_key/config.json
+python scripts/testset/code_collection.py --data_size 500 --api_config_file ./api_key/config.json
+python scripts/testset/math_collection.py --data_size 500 --api_config_file ./api_key/config.json
 ```
 
 ## Experiments
 
-### Subtask 1: Knowledge Probing
+All of the experiments will save checkpoints of results and can be resumed anytime as long as the checkpoints are saved. To ensure the data is saved, you can run `python autogit.py`.
+
+### Stage 1: Knowledge Probing
 
 To probe the model's knowledge, run:
+
 ```python
-python scripts/experiment/knowledge_probe.py \
-    --data_size 100 \                           # Number of collected examples (different from the number of examples to probe)
-    --api_config_file ./api_key/config.json \   # Path to the API configuration file
-    --model_name llama-3.2-3b \                 # Tested model
-    --task_name grow \                          # Can be grow (Graph Reasoning On Wikidata) or cue (Code-generation Using External APIs)
-    --temperature 0.7 \
-    --top_p 0.7 \
-    --max_tokens 100 \
-    --num_responses 10
-```
+python run_knowledge_experiments.py \
+    --model_names llama-3.2-1b llama-3.2-3b llama-3.2-11b qwen-3-1.7b qwen-3-4b qwen-3-8b gpt-4.1-mini o4-mini \    # List of ALL model names to run.
+    --cpu-only-models gpt-4.1-mini o4-mini \                                                                        # List of model names that are CPU-only
+    --task_names grow code math \                                                                                   # List of task names. "grow" means WIKI (previously Graph Reasoning On Wikidata)
 
 To automatically annotate the probing results, you can use the following command:
 
 ```python
-python scripts/evaluation/knowledge_evaluation.py \
-    --data_size 100 \                           # Number of collected examples (different from the number of examples to evaluate)
-    --api_config_file ./api_key/config.json \   # Path to the API configuration file
-    --model_name llama-3.2-3b \                 # Tested model
-    --evaluate_model_name gpt-4.1-mini \         # Model used for evaluation
-    --task_name grow \                          # Can be grow (Graph Reasoning On Wikidata) or cue (Code-generation Using External APIs)
+python run_knowledge_evaluations.py \
+    --model_names llama-3.2-1b llama-3.2-3b llama-3.2-11b qwen-3-1.7b qwen-3-4b qwen-3-8b gpt-4.1-mini o4-mini \    # List of ALL model names to run.
+    --task_names grow code math \                                                                                   # List of task names. "grow" means WIKI (previously Graph Reasoning On Wikidata)
 ```
 
-### Subtask 2: Knowledge Injection
+### Stage 2: Knowledge Injection
 
-Before running the script, ensure you have evaluated the knowledge probing results to identify the knowledge gaps in the model's responses.
+Before running the script, ensure you have evaluated the knowledge probing results (saved in `data/eval_results/{task_name}/probe_evaluated/`) to identify the knowledge gaps in the model's responses.
+
+The Base Model performance:
 
 ```python
-python scripts/experiment/knowledge_injection.py \
-    --data_size 100 \                           # Number of examples to inject knowledge
-    --api_config_file ./api_key/config.json \   # Path to the API configuration file
-    --model_name llama-3.2-3b \                 # Tested model
-    --task_name grow \                          # Can be grow (Graph Reasoning On Wikidata) or cue (Code-generation Using External APIs)
-    --temperature 0.7 \
-    --top_p 0.7 \
-    --max_tokens 512 \
-    --inject_knowledge \                        # Whether to inject knowledge
-    --knowledge_aggregation_method 1 \          # Scope for aggregating 'unknown' knowledge. Must be >= 1. 1: item-specific. N (e.g., 10, 100): group of N items.
-    --method base \                             # Method for knowledge injection. base: simple few-shot CoT prompting.
+python run_reasoning_experiments.py \
+    --model_names llama-3.2-1b llama-3.2-3b llama-3.2-11b qwen-3-1.7b qwen-3-4b qwen-3-8b gpt-4.1-mini \    # List of ALL model names to run.
+    --cpu-only-models gpt-4.1-mini \                                                                        # List of model names that are CPU-only
+```
+
+For Llama-3.2 models with knowledge injection:
+
+```python
+python run_reasoning_experiments.py \
+    --model_names llama-3.2-1b llama-3.2-3b llama-3.2-11b \ # List of ALL model names to run.
+    --inject-knowledge \                                    # Flag to run with knowledge injection. If not set, runs original baselines.
+    --methods base ft_ck mello \                            # List of methods to test (e.g., base, ft_ck).
+```
+
+For Qwen-3 models with knowledge injection:
+
+```python
+python run_reasoning_experiments.py \
+    --model_names qwen-3-1.7b qwen-3-4b qwen-3-8b \ # List of ALL model names to run.
+    --inject-knowledge \                            # Flag to run with knowledge injection. If not set, runs original baselines.
+    --methods base append_t ft_ck mello \           # List of methods to test (e.g., base, ft_ck).
+```
+
+For GPT models with knowledge injection:
+
+```python
+python run_reasoning_experiments.py \
+    --model_names gpt-4.1-mini o4-mini \        # List of ALL model names to run.
+    --cpu-only-models gpt-4.1-mini o4 mini \    # List of model names that are CPU-only
+    --inject-knowledge \                        # Flag to run with knowledge injection. If not set, runs original baselines.
+    --methods base \                            # List of methods to test (e.g., base, ft_ck).
 ```
 
 To automatically annotate the knowledge injection results, you can use the following command:
 
 ```python
-python scripts/evaluation/reasoning_evaluation.py \
-    --data_size 100 \                           # Number of examples to evaluate
-    --api_config_file ./api_key/config.json \   # Path to the API configuration file
-    --model_name llama-3.2-3b \                 # Tested model
-    --evaluate_model_name gpt-4.1-mini \         # Model used for evaluation
-    --task_name grow \                          # Can be grow (Graph Reasoning On Wikidata) or cue (Code-generation Using External APIs)
-    --inject_knowledge \                        # Whether to inject knowledge
-    --knowledge_aggregation_method 1 \          # Scope for aggregating 'unknown' knowledge. Must be >= 1. 1: item-specific. N (e.g., 10, 100): group of N items.
-    --method base \                             # Method for knowledge injection. base: simple few-shot CoT prompting.
+python run_reasoning_evaluations.py \
+    --model_name llama-3.2-1b llama-3.2-3b llama-3.2-11b qwen-3-1.7b qwen-3-4b qwen-3-8b gpt-4.1-mini o4-mini \ # List of ALL model names to run.
+    --evaluate_model_name gpt-4.1-mini o4-mini \                                                                # List of model names that are CPU-only
+    --methods base ft_ck mello append_t \                                                                       # List of methods to test (e.g., base, ft_ck).
 ```

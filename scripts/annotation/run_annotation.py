@@ -25,7 +25,7 @@ CONFIG = {
     "num_samples": 50,
     "random_seed": 42, # for reproducible sampling
     "api_config_file": "api_key/config.json",
-    "results_output_file": "annotation_results.json"
+    "results_output_file": "scripts/annotation/annotation_results.json"
 }
 
 PROMPT_TEMPLATES = {

@@ -6,7 +6,7 @@ import sys
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(project_root)
 
-RESULTS_FILE = "annotation_results.json"
+RESULTS_FILE = "scripts/annotation/annotation_results.json"
 MODELS = ["gpt-5-mini-2025-08-07", "gemini-2.5-pro"]
 
 def analyze_results(results_file):

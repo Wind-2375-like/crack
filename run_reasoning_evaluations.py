@@ -112,38 +112,6 @@ def generate_commands(args):
                 "cmd": cmd_list, "task": task, "model": model, "method": method, "scope": str(scope),
                 "status": status, "process": None, "retries": 0, "log_path": log_path
             })
-    
-    # --- 3. Evaluations with --method all ---
-    if args.run_method_all_eval:
-        console.print("[bold cyan]--> Generating '--method all' evaluation jobs...[/bold cyan]")
-        for task, model in itertools.product(args.task_names, args.model_names):
-            scope, method = 1, 'all'
-            input_dir = f'data/eval_results/{task}/injection/'
-            input_filename = f"{method}_{args.data_size}_{model}_{scope}.pkl"
-            input_path = os.path.join(input_dir, input_filename)
-            output_path = get_output_file_path(task, model, inject_knowledge=True, method=method, scope=scope, data_size=args.data_size)
-
-            cmd_list = base_script + [
-                "--inject_knowledge", "--knowledge_aggregation_scope", str(scope),
-                "--method", method, "--task_name", task, "--model_name", model,
-                "--data_size", str(args.data_size)
-            ]
-
-            status = "⏳ Pending"
-            if not args.overwrite:
-                input_len = get_pickle_file_length(input_path)
-                if input_len == 0:
-                    status = "⚠️ No Input"
-                else:
-                    output_len = get_pickle_file_length(output_path)
-                    if output_len >= input_len:
-                        status = "✅ Skipped (Complete)"
-
-            log_path = f"logs/eval_{task}_{model}_{method}_{scope}_injected.log"
-            jobs.append({
-                "cmd": cmd_list, "task": task, "model": model, "method": method, "scope": str(scope),
-                "status": status, "process": None, "retries": 0, "log_path": log_path
-            })
 
     return deque(jobs)
 
@@ -253,7 +221,6 @@ if __name__ == "__main__":
     # --- Evaluation Type Control ---
     parser.add_argument('--no-base-eval', action='store_false', dest='run_base_eval', help='Do not run base evaluations.')
     parser.add_argument('--no-inject-eval', action='store_false', dest='run_inject_eval', help='Do not run knowledge injection evaluations.')
-    parser.add_argument('--no-method-all-eval', action='store_false', dest='run_method_all_eval', help='Do not run --method all evaluations.')
     parser.add_argument('--overwrite', action='store_true', help='Force run all commands, overwriting existing results.')
     
     # --- Knowledge Injection Specifics ---

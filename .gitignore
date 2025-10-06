@@ -1,7 +1,6 @@
 logs
 .vscode
 api_key/config.json
-*.json
 *.npz
 
 # Byte-compiled / optimized / DLL files
