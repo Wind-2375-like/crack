@@ -24,7 +24,7 @@ In `api_key/config.json`, you need to provide your API keys for the models you w
         "client_application_key": "123abc456def789ghijklmno0123456789",
         "client_application_secret": "123abc456def789ghijklmno0123456789",
         "access_token": "123abc456def789ghijklmno0123456789",
-        "user_agent": "CRACK/1.0 (https://www.wikidata.org/wiki/User:CRACK)"
+        "user_agent": "TRACK/1.0 (https://www.wikidata.org/wiki/User:TRACK)"
     }
 }
 ```
