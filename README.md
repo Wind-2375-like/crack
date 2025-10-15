@@ -5,7 +5,8 @@
 We use Python 3.12.
 
 ```
-conda create -n crack python=3.12
+conda create -n track python=3.12
+conda activate track
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 pip install tqdm openai together transformers sparqlwrapper datasets accelerate ninja nvidia-ml-py peft
 MAX_JOBS=32 pip install flash-attn --no-build-isolation
