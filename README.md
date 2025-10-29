@@ -8,7 +8,7 @@ We use Python 3.12.
 conda create -n track python=3.12
 conda activate track
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-pip install tqdm openai together transformers sparqlwrapper datasets accelerate ninja nvidia-ml-py peft
+pip install tqdm openai together transformers sparqlwrapper datasets accelerate ninja nvidia-ml-py nltk rich peft
 MAX_JOBS=32 pip install flash-attn --no-build-isolation
 ```
 
@@ -105,6 +105,6 @@ To automatically annotate the knowledge injection results, you can use the follo
 ```python
 python run_reasoning_evaluations.py \
     --model_name llama-3.2-1b llama-3.2-3b llama-3.2-11b qwen-3-1.7b qwen-3-4b qwen-3-8b gpt-4.1-mini o4-mini \ # List of ALL model names to run.
-    --evaluate_model_name gpt-4.1-mini o4-mini \                                                                # List of model names that are CPU-only
-    --methods base ft_ck mello append_t \                                                                       # List of methods to test (e.g., base, ft_ck).
+    --evaluate_model_name gpt-5-mini-2025-08-07 \                                                               # List of model names for evaluation.
+    --method_names base ft_ck mello append_t \                                                                       # List of methods to test (e.g., base, ft_ck).
 ```
