@@ -51,6 +51,7 @@ python run_knowledge_experiments.py \
     --model_names llama-3.2-1b llama-3.2-3b llama-3.2-11b qwen-3-1.7b qwen-3-4b qwen-3-8b gpt-4.1-mini o4-mini \    # List of ALL model names to run.
     --cpu-only-models gpt-4.1-mini o4-mini \                                                                        # List of model names that are CPU-only
     --task_names grow code math \                                                                                   # List of task names. "grow" means WIKI (previously Graph Reasoning On Wikidata)
+```
 
 To automatically annotate the probing results, you can use the following command:
 
