@@ -1,5 +1,23 @@
 # Tracking the Limits of Knowledge Propagation: How LLMs Fail at Multi-Step Reasoning with Conflicting Knowledge
 
+
+<p align="center">
+   <a href="" target="_blank">🌐 Website</a> | <a href="" target="_blank">📃 Paper </a> | <a href="" target="_blank">𝕏 X (Twitter)</a>
+</p>
+
+This is the official implementation for the paper ["Tracking the Limits of Knowledge Propagation: How LLMs Fail at Multi-Step Reasoning with Conflicting Knowledge"](), which explores how LLMs propagate new knowledge through multi-step reasoning when it conflicts with the model's initial parametric knowledge.
+
+![illustration](img/intro.png)
+
+Our Tʀᴀᴄᴋ benchmark spans across three reasoning scenarios: Multi-Hop QA (WIKI), Code Generation (CODE), and Mathematical Reasoning (MATH). The benchmark follows a two-stage process: Knowledge Probing and Knowledge Injection. Performance is assessed using our metrics: Answer Pass (AP), Full Knowledge Entailment (FKE), and Holistic Pass (HP).
+
+![pipeline](img/pipeline.png)
+
+**Takeaways**:
+1. Providing updated facts yields limited performance gains and even worsens performance, compared with no facts provided.
+2. Performance further degrades with more updated facts.
+3. The failure stems from both inability to faithfully integrate updated facts and flawed reasoning even when knowledge is integrated
+
 ## Setup
 
 We use Python 3.12.
@@ -108,4 +126,12 @@ python run_reasoning_evaluations.py \
     --model_name llama-3.2-1b llama-3.2-3b llama-3.2-11b qwen-3-1.7b qwen-3-4b qwen-3-8b gpt-4.1-mini o4-mini \ # List of ALL model names to run.
     --evaluate_model_name gpt-5-mini-2025-08-07 \                                                               # List of model names for evaluation.
     --method_names base ft_ck mello append_t \                                                                       # List of methods to test (e.g., base, ft_ck).
+```
+
+## Citation
+
+If you find this repository useful, please consider citing our paper:
+
+```
+TODO
 ```
