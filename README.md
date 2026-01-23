@@ -2,7 +2,7 @@
 
 
 <p align="center">
-   <a href="" target="_blank">🌐 Website</a> | <a href="" target="_blank">📃 Paper </a> | <a href="" target="_blank">𝕏 X (Twitter)</a>
+   <a href="" target="_blank">🌐 Website</a> | <a href="https://arxiv.org/abs/2601.15495" target="_blank">📃 Paper </a> | <a href="" target="_blank">𝕏 X (Twitter)</a>
 </p>
 
 This is the official implementation for the paper ["Tracking the Limits of Knowledge Propagation: How LLMs Fail at Multi-Step Reasoning with Conflicting Knowledge"](), which explores how LLMs propagate new knowledge through multi-step reasoning when it conflicts with the model's initial parametric knowledge.
