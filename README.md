@@ -133,5 +133,13 @@ python run_reasoning_evaluations.py \
 If you find this repository useful, please consider citing our paper:
 
 ```
-TODO
+@misc{feng2026trackinglimitsknowledgepropagation,
+      title={Tracking the Limits of Knowledge Propagation: How LLMs Fail at Multi-Step Reasoning with Conflicting Knowledge}, 
+      author={Yiyang Feng and Zeming Chen and Haotian Wu and Jiawei Zhou and Antoine Bosselut},
+      year={2026},
+      eprint={2601.15495},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2601.15495}, 
+}
 ```
