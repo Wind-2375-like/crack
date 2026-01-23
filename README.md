@@ -9,7 +9,7 @@ This is the official implementation for the paper ["Tracking the Limits of Knowl
 
 ![illustration](img/intro.png)
 
-Our Tʀᴀᴄᴋ benchmark (Testing Reasoning Amid Conflicting Knowledge) spans across three reasoning scenarios: Multi-Hop QA (WIKI), Code Generation (CODE), and Mathematical Reasoning (MATH). The benchmark follows a two-stage process: Knowledge Probing and Knowledge Injection. Performance is assessed using our metrics: Answer Pass (AP), Full Knowledge Entailment (FKE), and Holistic Pass (HP).
+Our Tʀᴀᴄᴋ benchmark (Testing Reasoning Amid Conflicting Knowledge) spans across three reasoning scenarios: Multi-Hop QA (WIKI), Code Generation (CODE), and Mathematical Reasoning (MATH). The benchmark follows a two-stage process: Knowledge Probing and Knowledge Injection. Performance is assessed using our metrics: Answer Pass (AP), Full Knowledge Entailment (FKE), and Holistic Pass (HP).
 
 ![pipeline](img/pipeline.png)
 
